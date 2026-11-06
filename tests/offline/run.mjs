@@ -36,6 +36,7 @@ const SUITES = [
   ['api', 'api.test.mjs'],
   ['fence', 'fence.test.mjs'],
   ['identity', 'identity.test.mjs'],
+  ['sec', 'sec.test.mjs'],
   ['watchlist', 'watchlist.test.mjs'],
   ['ai', 'ai.test.mjs'],
   ['client', 'client.test.mjs'],

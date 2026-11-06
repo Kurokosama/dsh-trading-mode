@@ -18,6 +18,12 @@
   - AI 简报改成分节结构：KPI 三列、涨跌磁贴、异常成交量、关键观察列表。
   - 头部状态条改两行网格：品牌/标签/开关一行，数据源胶囊与缓存信息一行；provider 链路移入弹层。
 
+- **新增 SEC EDGAR 财务数据（免密钥）**：详情页新增「财务数据（SEC EDGAR）」卡片，展示营业收入、毛利润、
+  营业利润、净利润、摊薄每股收益、总资产、总负债、股东权益、现金及等价物、流通股本，并给出同口径同比。
+  数据来自 `data.sec.gov` 的 `companyfacts`，新路由 `GET /api/trading/fundamentals/:symbol`，
+  进程内缓存 6 小时（ticker→CIK 映射缓存 24 小时）。ETF 与基金不报 XBRL company facts，这类标的
+  不显示该卡片。
+
 ### 修复
 
 - **涨跌幅整列显示「—」**：Yahoo 请求带 `fields=regularMarketPrice`，响应被截断，
