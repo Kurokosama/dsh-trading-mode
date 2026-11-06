@@ -31,6 +31,8 @@
   `MARKETS` 与 `STOCK_MARKETS` 收为 `['US']`，行情链只剩 `yahoo → stooq`，清单源只剩 Nasdaq。
   代码解析不再接受 HK / CN / JP / 加密代码（统一报 `UNSUPPORTED_MARKET`），指数目录只保留 5 条美股指数。
 
+- **Crypto and non-US leftovers are gone from the engine.** The `CRYPTO_*` configuration, the crypto branch of `parseSymbol`/`currencyOf`, the HK/CN/JP seed lists in `SEED_WATCHLIST` / `RECOMMENDED_STARTERS`, and the "HKEX, SSE, SZSE, BSE, JPX and the top coins" copy in the universe browser were all still reachable from a build that only ships US feeds. They now reject with `UNSUPPORTED_MARKET` or are deleted outright.
+
 ### 修复
 
 - **涨跌幅整列显示「—」**：Yahoo 请求带 `fields=regularMarketPrice`，响应被截断，
