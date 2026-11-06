@@ -1,10 +1,24 @@
-# dsh-trading-mode
+# dsh-trading-mode（美股 fork）
 
-一个运行在 [DSH（DeepSeek Harness）](https://github.com/YuumaKobayashi/dsh-trading-mode) 里的行情研究面板。
+一个运行在 [DSH（DeepSeek Harness）](https://github.com/YuumaKobayashi/dsh-trading-mode) 里的美股研究面板。
 
-支持美股、港股、A 股、日股和加密货币，可以查报价、看 K 线和技术指标、浏览标的资料，也可以调用 DSH 的 `llm` 服务生成一份基于当前数据快照的分析。
+> 本仓库是 [YuumaKobayashi/dsh-trading-mode](https://github.com/YuumaKobayashi/dsh-trading-mode) 的 fork，
+> 只做**美股个股与美股 ETF**。港股、A 股、日股、加密货币不在范围内，正在从代码里移除，进度见
+> [docs/SCOPE.md](docs/SCOPE.md)。
+
+可以查报价、看 K 线和技术指标、浏览标的资料，也可以调用 DSH 的 `llm` 服务生成一份基于当前数据快照的分析。
 
 当前版本为 **0.8.2（Beta）**。实际版本以 `package.json` 为准，也可以通过 `GET /api/trading/health` 查看。
+
+## 与上游的差异
+
+- **报价涨跌幅**：上游的 Yahoo 请求带了 `fields=regularMarketPrice`，响应被截断后算不出涨跌，整列显示「—」；
+  本 fork 去掉该参数并在缺字段时回落到 chart 的 `chartPreviousClose`。
+- **界面**：自选表改成单行 + 固定列宽 + 表头，市场指数改成等高卡片条，AI 简报改成带分节的结构，
+  头部状态条改成两行网格；默认主题改为浅色。
+- **范围**：市场切换只留美股。
+
+上游修复仍可按需 cherry-pick：`git remote add upstream https://github.com/YuumaKobayashi/dsh-trading-mode.git`。
 
 > 这是研究工具，不是交易客户端。插件不接券商、不下单，也不提供投资建议。行情可能延迟，使用前请留意数据时间。
 
@@ -20,31 +34,22 @@
 
 | 来源 | 填入内容 | 适合场景 |
 | --- | --- | --- |
-| Release 包（推荐） | `https://github.com/YuumaKobayashi/dsh-trading-mode/releases/download/v0.8.2/dsh-trading-mode-0.8.2.tgz` | 普通安装，无需 git |
-| Git 仓库 | `github:YuumaKobayashi/dsh-trading-mode#v0.8.2` | 已安装 git 的机器 |
-| npm registry | `dsh-trading-mode` | 可访问 npm registry 的环境 |
+| Git 仓库（推荐） | `github:Kurokosama/dsh-trading-mode#main` | 已安装 git 的机器 |
 | 本地目录 | 插件源码所在的**绝对路径** | 离线安装、开发调试 |
 
-Git 地址也可以写成 `https://github.com/YuumaKobayashi/dsh-trading-mode#v0.8.2`。建议固定 tag；不指定时会安装 `main` 的最新提交。本地路径中的 `~` 不会自动展开。
+本 fork 尚未发布 Release 包，也**没有**发布到 npm registry；上游那个 `dsh-trading-mode`
+包名装的是作者版本，不是这个仓库。
 
-npm 包名安装会在安装前做版本兼容性预检；Release、Git、本地目录这三种方式的检查发生在安装后。
-
-注意：`npm install dsh-trading-mode` 只会把包装进普通 Node.js 项目，**不会把插件安装到 DSH**。也不要使用 `npx dsh …` 或 `dsh plugin install …`，这两种命令不是当前的安装入口。
+Git 地址也可以写成 `https://github.com/Kurokosama/dsh-trading-mode#main`。本地路径中的 `~` 不会自动展开。
 
 ### 2. 在 DSH 中安装
 
-将地址或包名粘贴到 **Package name or address**，点击 **Install plugin**，按提示批准安装。
+将地址粘贴到 **Package name or address**，点击 **Install plugin**，按提示批准安装。
 
 如果通过 DSH 助手执行插件管理操作，可以使用：
 
 ```text
-plugin_manager({ action: "install_bundle", target: "https://github.com/YuumaKobayashi/dsh-trading-mode/releases/download/v0.8.2/dsh-trading-mode-0.8.2.tgz" })
-```
-
-按 npm 包名安装时，使用：
-
-```text
-plugin_manager({ action: "install_bundle", target: "dsh-trading-mode", registry: "https://registry.npmjs.org" })
+plugin_manager({ action: "install_bundle", target: "github:Kurokosama/dsh-trading-mode#main" })
 ```
 
 `plugin_manager(...)` 是 DSH 内部操作，不是需要复制到终端执行的 shell 命令。安装过程中 DSH 会更新当前 profile 的配置；不需要手动修改 `cordis.yml`、profile 的 `package.json` 或 `dsh.profile.bundles`。

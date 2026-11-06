@@ -2,6 +2,29 @@
 
 本文件记录 `dsh-trading-mode` 的对外变更。版本号遵循 semver；`0.x` 期间 minor 版本可能含行为变更。
 
+## US fork — 未发布
+
+本仓库开始作为美股专用 fork 独立演进，本节条目只存在于本 fork。
+
+### 变更
+
+- **市场范围收窄到美股**：`lib/client.js` 的 `MARKET_ORDER` 只保留 `['US']`，浏览清单与市场指数不再出现
+  HK / CN / JP / 加密 的市场切换。引擎侧的 provider 与代码解析分支按 [docs/SCOPE.md](docs/SCOPE.md)
+  列出的顺序逐步删除。
+- **默认浅色主题**：`effectiveTheme()` 的缺省值由 `dark` 改为 `light`，深色仍可在头部一键切换。
+- **界面重排**：
+  - 自选表改单行 + 固定列宽 + 表头；涨跌与幅度拆成两列右对齐，`tabular-nums` 保证位数对齐。
+  - 市场指数改等高卡片条，`repeat(auto-fit, minmax(172px, 1fr))` 自适应；窄屏隐藏第三个来源链接而不是折行。
+  - AI 简报改成分节结构：KPI 三列、涨跌磁贴、异常成交量、关键观察列表。
+  - 头部状态条改两行网格：品牌/标签/开关一行，数据源胶囊与缓存信息一行；provider 链路移入弹层。
+
+### 修复
+
+- **涨跌幅整列显示「—」**：Yahoo 请求带 `fields=regularMarketPrice`，响应被截断，
+  `regularMarketChange` / `regularMarketChangePercent` / `regularMarketPreviousClose` 全缺；
+  去掉该参数，并在缺字段时回落到 chart 的 `chartPreviousClose`。
+- **底部数据源打印成 JSON**：`status.chains` 不再 `JSON.stringify`，改为 `US: yahoo · HK: yahoo · …` 的可读形式。
+
 ## 未发布
 
 把「搜索」和「添加股票」合并成同一件事：页面上只留顶部一个搜索框，结果以悬浮层出现，每行右侧的 `+` 直接加入自选。
