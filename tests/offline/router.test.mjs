@@ -65,7 +65,6 @@ await suite.check('a `providers` override changes the order without touching cod
   try {
     assert.deepEqual(router.chainFor('US'), [second, first]);
     assert.equal(router.candidates('quote', 'US')[0].id, second, 'candidates respect the override');
-    assert.deepEqual(router.chainFor('HK'), marketConfig('HK').chain, 'other markets are untouched');
   } finally {
     applyProviderChains(null);
   }
@@ -184,8 +183,8 @@ await suite.check('when every provider is cooling down the router half-opens the
 await suite.check('no candidate at all is a NO_PROVIDER error that names the request', async () => {
   const { router } = buildRouter({ options: Object.fromEntries(providerIds().map((id) => [id, { features: [] }])) });
   await assert.rejects(
-    () => router.run({ feature: 'candles', market: 'JP', interval: '5m', fn: async () => null }),
-    (err) => err.code === CODES.NO_PROVIDER && /no provider can serve candles for JP @ 5m/.test(err.message),
+    () => router.run({ feature: 'candles', market: 'US', interval: '5m', fn: async () => null }),
+    (err) => err.code === CODES.NO_PROVIDER && /no provider can serve candles for US @ 5m/.test(err.message),
   );
   return 'NO_PROVIDER';
 });
@@ -198,37 +197,6 @@ await suite.check('every provider failing folds into one DATA_UNAVAILABLE error'
     (err) => err.code === CODES.DATA_UNAVAILABLE && err.message.includes(`quote for ZZZZ unavailable (${chain[0]}:`),
   );
   return 'aggregated';
-});
-
-await suite.check('a coin and the same-ticker stock both survive one search (m00453 regression)', async () => {
-  // `BTC` is a NYSE-listed trust, `SUI` a US REIT, `APT` a NASDAQ listing. The
-  // search used to dedupe by symbol alone, so the stock pass swallowed the coin
-  // row and a user searching a coin found only the fund.
-  const { MarketDataService } = await import('../../lib/trading/service.js');
-  const service = new MarketDataService({});
-  const stock = fakeProvider('yahoo', { markets: ['US'], features: ['search'] });
-  const coins = fakeProvider('coinlore', { markets: ['CRYPTO'], features: ['search'] });
-  const rows = {
-    US: [{ symbol: 'BTC', market: 'US', name: 'Grayscale Bitcoin Mini Trust' }],
-    CRYPTO: [{ symbol: 'BTC', market: 'CRYPTO', name: 'Bitcoin', nameZh: '比特币' }],
-  };
-  stock.searchStocks = async () => rows.US;
-  coins.searchStocks = async () => rows.CRYPTO;
-  service.router.candidates = (feature, market) => {
-    const provider = market === 'CRYPTO' ? coins : stock;
-    return [{ id: provider.id, provider, healthy: true }];
-  };
-
-  const merged = await service.searchRemote('BTC');
-  assert.deepEqual(
-    merged.map((row) => `${row.market}:${row.symbol}`),
-    ['US:BTC', 'CRYPTO:BTC'],
-    'the stock answer must not remove the coin row',
-  );
-
-  const scoped = await service.searchRemote('BTC', 'CRYPTO');
-  assert.deepEqual(scoped.map((row) => row.market), ['CRYPTO'], 'a market-pinned search stays in that market');
-  return 'collision kept as two instruments';
 });
 
 process.exit(exitCodeFor(suite.finish()));

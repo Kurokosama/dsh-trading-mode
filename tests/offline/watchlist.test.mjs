@@ -29,14 +29,14 @@ import {
   makeWatchlistItem,
 } from '../../lib/trading/watchlist.js';
 
-const suite = createSuite('watchlist persistence across every market');
+const suite = createSuite('watchlist persistence across the US market');
 
 const SAMPLES = [
   { symbol: 'AAPL', market: 'US', currency: 'USD' },
-  { symbol: '0700.HK', market: 'HK', currency: 'HKD' },
-  { symbol: '600519.SH', market: 'CN', currency: 'CNY' },
-  { symbol: '7203.T', market: 'JP', currency: 'JPY' },
-  { symbol: 'BTC', market: 'CRYPTO', currency: 'USDT' },
+  { symbol: 'MSFT', market: 'US', currency: 'USD' },
+  { symbol: 'VOO', market: 'US', currency: 'USD' },
+  { symbol: 'SCHD', market: 'US', currency: 'USD' },
+  { symbol: 'BRK.B', market: 'US', currency: 'USD' },
 ];
 
 /** The API always passes the market it resolved; the hint is part of the row. */
@@ -44,7 +44,7 @@ const rowFor = (sample) => makeWatchlistItem({ symbol: sample.symbol, market: sa
 
 await suite.check('the stored market list cannot drift from the supported markets', () => {
   assert.deepEqual(WATCHLIST_MARKET_VALUES, MARKETS, 'watchlist markets differ from MARKETS');
-  assert.equal(WATCHLIST_MARKET_VALUES.length, 5);
+  assert.equal(WATCHLIST_MARKET_VALUES.length, 1);
   return WATCHLIST_MARKET_VALUES.join(', ');
 });
 
@@ -55,11 +55,10 @@ await suite.check('a row per market is built with the market venue currency', ()
     assert.equal(row.currency, sample.currency, `${sample.symbol} currency`);
     assert.equal(row.userId, 'local-1');
   }
-  // A row built without a hint must still carry a market (the symbol decides).
-  const hinted = makeWatchlistItem({ symbol: '0700.HK' }, 'local-1', 0);
-  assert.equal(hinted.market, 'HK', 'the symbol suffix must decide the market');
-  assert.equal(hinted.currency, 'HKD');
-  // A bare crypto ticker without a hint is a US listing by construction.
+  // A row built without a hint must still carry the US market.
+  const hinted = makeWatchlistItem({ symbol: 'MSFT' }, 'local-1', 0);
+  assert.equal(hinted.market, 'US', 'a bare ticker is a US listing');
+  assert.equal(hinted.currency, 'USD');
   assert.equal(makeWatchlistItem({ symbol: 'BTC' }, 'local-1', 0).market, 'US');
   return `${SAMPLES.length} rows`;
 });
@@ -81,9 +80,9 @@ await suite.check('the file backend round-trips one row per market', async () =>
     );
     // A second identity shares the file but not the rows, and a remove sticks.
     assert.equal((await store.list('local-2')).length, 0);
-    await store.remove('local-1', '7203.T');
+    await store.remove('local-1', 'VOO');
     assert.equal((await store.list('local-1')).length, SAMPLES.length - 1);
-    return `file backend stored ${SAMPLES.length} markets`;
+    return `file backend stored ${SAMPLES.length} US rows`;
   } finally {
     await store.dispose();
     await fs.promises.rm(home, { recursive: true, force: true });
@@ -149,9 +148,9 @@ await suite.check('concurrent adds serialise into one valid file (0.8.2 regressi
     await store.init();
     const samples = [
       { symbol: 'AAPL', market: 'US' },
-      { symbol: '0700.HK', market: 'HK' },
-      { symbol: '600519.SH', market: 'CN' },
-      { symbol: '7203.T', market: 'JP' },
+      { symbol: 'MSFT', market: 'US' },
+      { symbol: 'VOO', market: 'US' },
+      { symbol: 'SCHD', market: 'US' },
     ];
     // Every save used to share `<file>.<pid>.tmp`, so concurrent writes renamed
     // each other's half-written temp file and left the JSON truncated.

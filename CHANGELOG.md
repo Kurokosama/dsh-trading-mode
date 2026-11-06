@@ -23,6 +23,13 @@
   数据来自 `data.sec.gov` 的 `companyfacts`，新路由 `GET /api/trading/fundamentals/:symbol`，
   进程内缓存 6 小时（ticker→CIK 映射缓存 24 小时）。ETF 与基金不报 XBRL company facts，这类标的
   不显示该卡片。
+- **新增 Nasdaq 财报日历（免密钥）**：详情页显示下次财报（日期、盘前/盘后、距今天数、预期 EPS 与分析师数），
+  自选表在 7 天内的标的上挂 `财报 Nd` 徽章。数据来自 `api.nasdaq.com` 的日历接口，新路由
+  `GET /api/trading/earnings?from=YYYY-MM-DD&days=N`，按日缓存 6 小时，单日失败不影响其余日期。
+  该接口拒绝非浏览器 User-Agent，请求统一使用 `HTTP_POLICY.userAgent`。
+- **引擎只保留美股**：删除 eastmoney / tencent / sina / binance / gate / coinlore 六个 provider，
+  `MARKETS` 与 `STOCK_MARKETS` 收为 `['US']`，行情链只剩 `yahoo → stooq`，清单源只剩 Nasdaq。
+  代码解析不再接受 HK / CN / JP / 加密代码（统一报 `UNSUPPORTED_MARKET`），指数目录只保留 5 条美股指数。
 
 ### 修复
 

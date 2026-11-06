@@ -348,7 +348,7 @@ await suite.check('preferences are stored per user as well', async () => {
 await suite.check('the API publishes what is configurable, not how to configure it in code', async () => {
   const { api } = buildApi();
   const config = api.publicConfig();
-  assert.deepEqual(config.markets, ['US', 'HK', 'CN', 'JP', 'CRYPTO']);
+  assert.deepEqual(config.markets, ['US']);
   assert.equal(config.networkMode, 'auto');
   assert.deepEqual(config.providerChainProblems, []);
   for (const market of config.markets) {

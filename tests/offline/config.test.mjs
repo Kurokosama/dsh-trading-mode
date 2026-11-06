@@ -42,8 +42,11 @@ import { createSuite, exitCodeFor } from './harness.mjs';
 
 const suite = createSuite('config: markets, provider chains and transport mode');
 
-await suite.check('the five markets are declared in a stable order', () => {
-  assert.deepEqual(MARKETS, ['US', 'HK', 'CN', 'JP', 'CRYPTO']);
+await suite.check('the US market is the only one this fork ships', () => {
+  // The fork is US equities and ETFs only (docs/SCOPE.md): the market list is
+  // what the router, the cache keys and the API shapes iterate over, so it has
+  // exactly one entry and every non-US feed is gone from the registry.
+  assert.deepEqual(MARKETS, ['US']);
   return MARKETS.join(', ');
 });
 
@@ -59,14 +62,13 @@ await suite.check('every shipped chain only names shipped providers and never re
   return `${MARKETS.map((m) => `${m}:${marketConfig(m).chain.length}`).join(' ')}`;
 });
 
-await suite.check('a valid `providers` override replaces only the markets it names', () => {
+await suite.check('a valid `providers` override replaces the chain it names', () => {
   const fallback = marketConfig('US');
-  const { applied, problems } = applyProviderChains({ US: ['tencent', 'yahoo'] });
+  const { applied, problems } = applyProviderChains({ US: ['stooq', 'yahoo'] });
   assert.deepEqual(problems, []);
   assert.deepEqual(applied, ['US']);
-  assert.deepEqual(providerChain('US'), ['tencent', 'yahoo']);
-  assert.deepEqual(chainOverrides(), { US: ['tencent', 'yahoo'] });
-  assert.deepEqual(providerChain('HK'), MARKET_DATA_CONFIG.HK.chain, 'HK must keep the default chain');
+  assert.deepEqual(providerChain('US'), ['stooq', 'yahoo']);
+  assert.deepEqual(chainOverrides(), { US: ['stooq', 'yahoo'] });
   assert.deepEqual(marketConfig('US').primary, MARKET_DATA_CONFIG.US.primary, 'primary is metadata, not order');
   applyProviderChains(null);
   assert.deepEqual(providerChain('US'), fallback.chain, 'clearing the override restores the default');
@@ -76,22 +78,19 @@ await suite.check('a valid `providers` override replaces only the markets it nam
 await suite.check('an invalid override is reported and the default stays in force', () => {
   const { applied, problems } = applyProviderChains({
     MARS: ['yahoo'],
+    HK: ['yahoo'],
     US: ['yahoo', 'yahoo'],
-    HK: 'yahoo',
-    CN: [],
-    JP: ['nosuchfeed'],
-    CRYPTO: ['gate', 'binance'],
+    CN: 'yahoo',
+    JP: [],
   });
-  assert.deepEqual(applied, ['CRYPTO']);
+  assert.deepEqual(applied, []);
   assert.deepEqual(providerChain('US'), MARKET_DATA_CONFIG.US.chain, 'a duplicate chain must not be applied');
-  assert.deepEqual(providerChain('JP'), MARKET_DATA_CONFIG.JP.chain, 'an unknown provider must not be applied');
-  assert.deepEqual(providerChain('CRYPTO'), ['gate', 'binance']);
   const text = problems.join('\n');
-  assert.match(text, /providers\.MARS: unknown market \(accepted: US, HK, CN, JP, CRYPTO\)/);
+  assert.match(text, /providers\.MARS: unknown market \(accepted: US\)/);
+  assert.match(text, /providers\.HK: unknown market \(accepted: US\)/);
   assert.match(text, /providers\.US: provider yahoo is listed twice/);
-  assert.match(text, /providers\.HK: expected an array of provider ids/);
-  assert.match(text, /providers\.CN: the chain must list at least one provider/);
-  assert.match(text, /providers\.JP: unknown provider "nosuchfeed" \(accepted: .*yahoo.*\)/);
+  assert.match(text, /providers\.CN: unknown market \(accepted: US\)/);
+  assert.match(text, /providers\.JP: unknown market \(accepted: US\)/);
   const exposed = providerChainProblems();
   assert.equal(exposed.length, problems.length, 'the problems must be readable from the API');
   applyProviderChains(null);
@@ -176,7 +175,7 @@ await suite.check('the retry/timeout policy stays conservative', () => {
   assert.ok(HTTP_POLICY.rateLimitPerMinute > 0);
   assert.ok(HTTP_POLICY.failureThreshold >= 1);
   assert.ok(HTTP_POLICY.healthCooldownMs >= 1000);
-  const shipped = ['yahoo', 'stooq', 'eastmoney', 'tencent', 'sina', 'nasdaq', 'binance', 'gate', 'coinlore'];
+  const shipped = ['yahoo', 'stooq', 'nasdaq'];
   assert.deepEqual(Object.keys(PROVIDER_CONFIG).sort(), [...shipped].sort(), 'the provider registry must list exactly the shipped providers');
   return `timeout=${HTTP_POLICY.timeoutMs}ms retries=${HTTP_POLICY.retries} providers=${shipped.length}`;
 });
