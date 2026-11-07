@@ -21,6 +21,7 @@ import {
   buildStockInput,
   buildUserMessage,
   derivedSuggestions,
+  localBrief,
   normalizeBrief,
   qualityFor,
   recencyOf,
@@ -913,6 +914,41 @@ await check('1.1: a defensive tape frames every row before the row-level ideas',
     assert.equal('sectors' in buildBriefInput({ stocks: [] }) && buildBriefInput({ stocks: [] }).sectors, undefined);
     assert.match(BRIEF_STYLE_DIRECTIVE, /sectors: an optional read-only board backdrop/i);
     return 'sector context passes through only with a numeric day change';
+  });
+
+  await check('the brief can be written without a model, and it says so', () => {
+    const input = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 180, changePct: 2.4 }, technical: { technical: { volumeRatio20d: 2.1, rsi14: 72 } } },
+        { symbol: 'TSLA', quote: { price: 240, changePct: -3.1 }, technical: { technical: { volumeRatio20d: 1.9, rsi14: 28 } } },
+        { symbol: 'AAPL', quote: { price: 270, changePct: 0.2 } },
+      ],
+      earnings: { today: '2026-11-06', bySymbol: { AAPL: { date: '2026-11-09', session: 'am' } } },
+    });
+    const en = localBrief(input, 'en');
+    assert.equal(en.local, true, 'the fallback is marked as rule-written');
+    assert.equal(en.stocksTracked, 3);
+    assert.equal(en.upCount, 2);
+    assert.equal(en.downCount, 1);
+    assert.equal(en.strongestMover, 'NVDA +2.40%');
+    assert.equal(en.largestDecline, 'TSLA -3.10%');
+    assert.deepEqual(en.unusualVolume, ['NVDA 2.1x', 'TSLA 1.9x'], 'volume spikes listed steepest first');
+    assert.ok(en.keyObservations.length >= 2 && en.keyObservations.length <= 5, 'observations stay inside the card contract');
+    assert.ok(en.suggestions.length >= 1 && en.suggestions.length <= 5, 'the derived ladder still fills the action list');
+    assert.match(en.headline, /NVDA \+2\.40% leads/, 'the headline names the leader');
+    assert.match(en.keyObservations[0], /3 names tracked: 2 up, 1 down/);
+    const zh = localBrief(input, 'zh');
+    assert.match(zh.headline, /领涨/, 'the fallback speaks the panel language');
+    assert.match(zh.keyObservations[0], /最强/);
+    assert.ok(zh.suggestions.some((line) => /NVDA/.test(line)), 'zh suggestions are derived too');
+    // No quotes at all: the card still gets an answer, but no invented mover.
+    const empty = localBrief({ stocks: [] }, 'en');
+    assert.equal(empty.stocksTracked, 0);
+    assert.equal(empty.strongestMover, 'Unavailable.');
+    assert.equal(empty.largestDecline, 'Unavailable.');
+    assert.equal(empty.unusualVolume.length, 0);
+    assert.equal(empty.keyObservations.length, 0);
+    return 'the fallback brief is arithmetic over the same input and never invents a mover';
   });
 
   console.log(`\n=== ${passed}/${passed + failures.length} checks passed, ${failures.length} failed ===`);

@@ -493,6 +493,34 @@ await suite.check('the AI brief reads the caller\'s rows and rejects an empty li
   return 'brief uses the caller rows';
 });
 
+await suite.check('brief: without a model the caller still gets a rule edition', async () => {
+  const { api, ai } = buildApi({ user: 'local-1' });
+  await call(api, { method: 'POST', url: '/api/trading/watchlist', body: { symbol: 'AAPL' } });
+  // The host has no LLM in this session: the route must degrade, not fail.
+  ai.watchlistBrief = async () => {
+    throw new TradingError('AI_UNAVAILABLE', 'no model configured');
+  };
+  const local = await call(api, { method: 'POST', url: '/api/trading/watchlist/analyze', body: { lang: 'zh' } });
+  assert.equal(local.status, 200, JSON.stringify(local.payload));
+  const value = local.payload.value;
+  assert.equal(value.meta.local, true, 'the payload says a rule edition was written');
+  assert.equal(value.meta.ai, false);
+  assert.equal(value.brief.local, true);
+  assert.equal(value.brief.stocksTracked, 1);
+  assert.ok(value.brief.headline, 'a headline is still written');
+  assert.ok(Array.isArray(value.brief.suggestions), 'the derived action list rides along');
+  assert.ok(value.brief.suggestions.length >= 1, 'at least one line, or the card would look empty');
+
+  // Any other error is a real failure and must not be swallowed by the fallback.
+  ai.watchlistBrief = async () => {
+    throw new TradingError('UPSTREAM_ERROR', 'the model endpoint answered 500', { status: 500 });
+  };
+  const broken = await call(api, { method: 'POST', url: '/api/trading/watchlist/analyze', body: {} });
+  assert.ok(broken.status >= 500, `an upstream failure must surface, got ${broken.status}`);
+  assert.equal(broken.payload.error.code, 'UPSTREAM_ERROR');
+  return 'rule edition when no model, real error otherwise';
+});
+
 await suite.check('preferences are stored per user as well', async () => {
   const store = fakeSettings();
   const { api, setUser } = buildApi({ settings: store, user: 'local-1' });

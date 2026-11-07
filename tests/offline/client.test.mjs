@@ -412,6 +412,54 @@ await check('0.5.1 AI: an unavailable DeepSeek explains itself in both panels', 
   return 'reason surfaced in the brief and analysis panels (en + zh)';
 });
 
+await check('brief: the rule edition is labelled and needs no model', async () => {
+  const { BriefCard, makeT } = internals;
+  const local = renderToString(
+    h(BriefCard, {
+      aiAvailable: false,
+      aiReason: 'no llm service',
+      brief: {
+        headline: 'Board 2 up, 1 down',
+        local: true,
+        stocksTracked: 3,
+        upCount: 2,
+        downCount: 1,
+        strongestMover: 'NVDA +2.4%',
+        largestDecline: 'TSLA -3.1%',
+        unusualVolume: ['NVDA 2.1x'],
+        keyObservations: ['NVDA leads the board'],
+        suggestions: ['NVDA holds above its 20-day average'],
+      },
+    }),
+  );
+  assert(local.includes('Rules only'), 'a rule edition says so on the card');
+  assert(local.includes('tm-brief__local'), 'the label has its own style hook');
+  const modelled = renderToString(
+    h(BriefCard, {
+      aiAvailable: true,
+      brief: {
+        headline: 'Board 2 up, 1 down',
+        stocksTracked: 3,
+        upCount: 2,
+        downCount: 1,
+        strongestMover: 'NVDA +2.4%',
+        largestDecline: 'TSLA -3.1%',
+        unusualVolume: [],
+        keyObservations: [],
+        suggestions: ['NVDA holds above its 20-day average'],
+      },
+    }),
+  );
+  assert(!modelled.includes('Rules only'), 'a model-written brief must not claim to be rules');
+  assert(modelled.includes('Board 2 up, 1 down'), 'the headline still renders');
+  const source = String(BriefCard);
+  assert(source.includes('disabled: loading'), 'the button is only blocked while a run is in flight');
+  assert(source.includes('rule-based edition'), 'the hint explains what the fallback writes');
+  assert(makeT('zh')('Rules only') === '仅为规则生成', 'the label is translated');
+  assert(String(internals.CSS).includes('.tm-brief__local'), 'the label is styled');
+  return 'rule edition labelled; model edition untouched';
+});
+
 await check('i18n: the zh dictionary is complete and never leaks a raw key', async () => {
   assert(JSON.stringify(internals.LANGS) === JSON.stringify(['en', 'zh']), 'en + zh are the shipped languages');
   const zh = internals.ZH;
