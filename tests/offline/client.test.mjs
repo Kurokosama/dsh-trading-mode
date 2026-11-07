@@ -627,6 +627,7 @@ await check('event board: three calendars merge into one chronological, filterab
   assert(String(internals.useEventReminder).includes('tm-ev-reminded'), 'the same reminder is not repeated the same day');
   assert(String(internals.EventBoard).includes('also arrive as a desktop alert'), 'the board says where the reminder comes from');
   assert(/[\u4e00-\u9fff]/.test(internals.ZH['Today and tomorrow also arrive as a desktop alert while this tab is hidden.'] || ''), 'the reminder note localises');
+  assert(String(internals.EventBoard).includes('tm-events-type'), 'the type chip remembers itself like the window does');
   return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
