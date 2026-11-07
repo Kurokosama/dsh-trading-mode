@@ -658,7 +658,19 @@ await check('chart: the drawn picture says what it is, out loud', async () => {
   return 'chart label ok';
 });
 
-await check('chart: the cost basis is drawn on the price scale, not guessed', async () => {
+await check('watchlist rail: the cost marker rides the 52-week band when it belongs there', async () => {
+        const tech = { low52w: 100, high52w: 200 }
+        const span = tech.high52w - tech.low52w
+        const mk = (price) => (price >= tech.low52w && price <= tech.high52w ? Math.max(0, Math.min(100, 100 * (price - tech.low52w) / span)) : null)
+        assert(mk(150) === 50, 'mid band midpoint')
+        assert(mk(200) === 100, 'top of band')
+        assert(mk(250) === null, 'above band has no marker')
+        assert(mk(50) === null, 'below band has no marker')
+        assert(String(internals.DetailView).includes('tm-range__cost'), 'rail carries the cost marker')
+        assert(/tm-range__cost[\s\S]*?background: transparent/.test(String(internals.CSS)), 'cost dot CSS present')
+        assert(internals.ZH['Your cost'] === '成本价', 'zh cost label present')
+      })
+      await check('chart: the cost basis is drawn on the price scale, not guessed', async () => {
   const geo = internals.buildGeometry;
   const bars = [
     { timestamp: '2026-11-01T00:00:00Z', open: 100, high: 120, low: 98, close: 110, volume: 1000 },
