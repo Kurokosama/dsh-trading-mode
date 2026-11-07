@@ -352,6 +352,25 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('home: the cost-basis warnings are visible before a brief is written', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const render = (notes) =>
+    renderToStaticMarkup(React.createElement(internals.AccountNotesCard, { notes }));
+  const heavy = render(['NVDA is 42% of your USD positions; at that weight its drawdown is your drawdown.']);
+  assert(heavy.includes('tm-notes'), 'the card has its list');
+  assert(heavy.includes('42%'), 'and carries the sentence it was given');
+  assert(heavy.includes('tm-notes-card') || heavy.includes('tm-card--notes'), 'the card is identifiable');
+  const many = render(['a', 'b', 'c', 'd', 'e', 'f']);
+  assert(many.includes('2 more in the brief'), 'the tail is counted, not dropped silently');
+  assert(render([]) === '', 'no notes, no card');
+  assert(render(null) === '', 'no list, no card');
+  assert(render(['', null, 'kept']) .includes('kept'), 'junk entries are skipped, real ones survive');
+  assert(internals.ZH['Account notes'] === '账户笔记', 'the title is localised');
+  assert(String(internals.HomeView).includes('AccountNotesCard'), 'the home page renders it');
+  return 'account notes ok';
+});
+
 await check('search: a result says whether the name is already a position', async () => {
   const { renderToStaticMarkup } = await import('react-dom/server');
   const React = (await import('react')).default;
