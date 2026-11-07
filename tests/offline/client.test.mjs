@@ -1895,6 +1895,55 @@ await check('brief: an action idea says whether it lands on a position you hold'
   assert(String(internals.CSS).includes('.tm-brief__hold'), 'the marker is styled');
 });
 
+await check('brief: an idea about a name you do not track says so', async () => {
+  const rows = [
+    { symbol: 'NVDA', market: 'US', quote: { price: 100, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+    { symbol: 'AAPL', market: 'US', quote: { price: 200, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+    { symbol: ' nvda ', market: 'US', quote: { price: 100, currency: 'USD' } },
+    { symbol: '', market: 'US' },
+    {},
+    null,
+  ];
+  const listed = internals.boardSymbols(rows);
+  assert(listed instanceof Set, 'the helper returns a set of tickers');
+  assert(listed.has('NVDA') && listed.has('AAPL'), 'what is on the board is what can be acted on');
+  assert(listed.size === 2, 'blank and shapeless rows add nothing: ' + listed.size);
+  assert(internals.boardSymbols(null).size === 0, 'no rows means nothing listed');
+  assert(internals.boardSymbols([{}]).size === 0, 'a row without a symbol is not a name');
+
+  const html = renderToString(h(internals.BriefCard, {
+    brief: { headline: 'Mixed tape', stocksTracked: 2, upCount: 1, downCount: 1,
+      strongestMover: 'NVDA +1.2% 100.00',
+      suggestions: [
+        'NVDA — the momentum attempt is back in play',
+        'TLV — semiconductor equipment is the crowded trade',
+        'keep some dry powder until the print',
+      ] },
+    sectors: [],
+    positions: [],
+    held: new Set(['NVDA']),
+    board: listed,
+    aiAvailable: true,
+  }));
+  // A held line keeps its existing tag and gains nothing else; a line about a
+  // name outside the board is labelled; a market-level line stays unlabelled.
+  assert(html.includes('tm-brief__hold'), 'the held line keeps its marker');
+  const marks = html.split('tm-brief__outside').length - 1;
+  assert(marks === 1, 'exactly one idea is marked as outside the board: ' + marks);
+  assert(html.includes('Not on your watchlist'), 'the outside marker names itself');
+  const zh = internals.makeT('zh');
+  assert(zh('Not on your watchlist') === '不在你的列表', 'the marker localises');
+  assert(
+    zh('A name you do not track: this came from the market data, not from your board.') === '这只不在你的自选里：这条来自市场数据，不是你的列表。',
+    'the tooltip explains the marker',
+  );
+  const source = String(internals.BriefCard);
+  assert(source.includes('board.has(lead[1])'), 'the marker is keyed to the leading ticker');
+  assert(source.includes('tm-brief__outside'), 'the element is wired in the component');
+  assert(String(internals.CSS).includes('.tm-brief__outside'), 'the marker is styled');
+  assert(String(internals.HomeView).includes('board: boardSet'), 'the home page supplies the board');
+});
+
 await check('brief: an empty action list says waiting is the plan, not silence', async () => {
   const html = renderToString(h(internals.BriefCard, {
     brief: { headline: 'Quiet tape', stocksTracked: 3, upCount: 1, downCount: 2,
