@@ -806,13 +806,26 @@ await check('brief: the local cost basis adds its own lines, and only above a th
     'US:VOO': { price: 640, shares: 1 },
   };
   const notes = internals.positionNotes(rows, costs, t);
-  assert(notes.length === 2, `one line for the biggest move, one for the pool (got ${notes.length})`);
+  assert(notes.length === 3, `a move, a concentration, and the pool (got ${notes.length}: ${notes.join(' | ')})`);
   assert(notes[0].includes('AAPL') && notes[0].includes('+16.7%'), `the winner is named with its move (got ${notes[0]})`);
   assert(notes[0].includes('$180.00') && notes[0].includes('$210.00'), 'cost and last trade are both shown');
   assert(notes[0].includes('→'), 'the pair reads as a transition');
+  // 2100 of 3650 = 58% in one name: the book's day is that name's day.
+  assert(notes[1].includes('AAPL') && notes[1].includes('58%') && notes[1].includes('USD'), `the weight is stated (got ${notes[1]})`);
   // Basis 3465, open P&L +185 (AAPL +300, NVDA −125, VOO +10) → +5.3% across three.
-  assert(notes[1].includes('3 只持仓') && notes[1].includes('+5.3%'), `the pool is summed (got ${notes[1]})`);
-  assert(notes[1].includes('+$185.00'), `the pool carries the money too (got ${notes[1]})`);
+  assert(notes[2].includes('3 只持仓') && notes[2].includes('+5.3%'), `the pool is summed (got ${notes[2]})`);
+  assert(notes[2].includes('+$185.00'), `the pool carries the money too (got ${notes[2]})`);
+  // Evenly sized rows are a book, not a bet: no concentration line.
+  const even = internals.positionNotes(
+    [
+      { symbol: 'A', market: 'US', quote: { price: 100, currency: 'USD' } },
+      { symbol: 'B', market: 'US', quote: { price: 100, currency: 'USD' } },
+      { symbol: 'C', market: 'US', quote: { price: 100, currency: 'USD' } },
+    ],
+    { 'US:A': { price: 100, shares: 1 }, 'US:B': { price: 100, shares: 1 }, 'US:C': { price: 100, shares: 1 } },
+    t,
+  );
+  assert(even.every((line) => !line.includes('33%')), `a third in each name is not a concentration call (got ${even.join(' | ')})`);
   // A single quiet position (1.6%) earns nothing: the block must not turn into a
   // restatement of every row.
   assert(internals.positionNotes(rows.slice(2), costs, t).length === 0, 'a quiet single position says nothing');
