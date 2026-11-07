@@ -786,6 +786,9 @@ await check('positions: a cost basis turns a row into value and open P&L', async
 
 await check('detail digest: the copy button writes only the numbers the page has', async () => {
   assert(typeof internals.digestLines === 'function', 'digestLines is exported')
+  assert(internals.CSS.includes('.tm-detail__actions'),
+    'the header actions share one wrapping group instead of drifting apart')
+  assert(internals.CSS.includes('.tm-spark'), 'the sparkline has its own slot beside the price')
   const t = internals.makeT('zh')
 
   const full = internals.digestLines(
