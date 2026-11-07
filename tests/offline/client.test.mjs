@@ -784,6 +784,40 @@ await check('positions: a cost basis turns a row into value and open P&L', async
   return 'basis drafts normalise, markets stay separate, value and P&L agree';
 });
 
+await check('detail digest: the copy button writes only the numbers the page has', async () => {
+  assert(typeof internals.digestLines === 'function', 'digestLines is exported')
+  const t = internals.makeT('zh')
+
+  const full = internals.digestLines(
+    {
+      symbol: 'AAPL',
+      name: 'Apple Inc.',
+      price: 342.65,
+      change: 1.2,
+      changePct: 0.35,
+      currency: 'USD',
+      ext: { session: 'post', price: 342.9, changePct: 0.07 },
+      position: { shares: 10, cost: 180, value: 3426.5, pnl: 1626.5, pct: 90.36, currency: 'USD' },
+      exDividendDate: Date.UTC(2026, 10, 12),
+    },
+    t,
+  )
+  assert(full[0] === 'AAPL · Apple Inc.', 'the head names the symbol and the company')
+  assert(full[1].includes('$342.65') && full[1].includes('+1.20'), 'the price line carries the move')
+  assert(full.some((line) => line.includes('盘后') && line.includes('$342.90')), 'the extended print is dated by session')
+  assert(full.some((line) => line.includes('10 @') && line.includes('$180.00')), 'a held position brings its cost')
+  assert(full.some((line) => line.includes('2026-11-12')), 'the ex-dividend day is written in UTC')
+
+  const bare = internals.digestLines({ symbol: 'VOO', price: 677.04, currency: 'USD' }, t)
+  assert(bare.length === 2, 'a page with nothing but a price writes two lines')
+  assert(!bare.join(' ').includes('—'), 'an absent number is left out, not dashed')
+
+  assert(internals.digestLines(null, t).length === 0, 'no input writes nothing')
+  assert(internals.digestLines({ price: null, change: null }, t).length === 0, 'a page with no print writes nothing')
+  const stale = internals.digestLines({ symbol: 'TSLA', price: 200, ext: { session: 'overnight', price: 205 } }, t)
+  assert(!stale.join(' ').includes('205'), 'an unknown session is not reported as an extended print')
+})
+
 await check('detail sparkline: the header trend squashes the last closes into a box', async () => {
   assert(typeof internals.sparkPoints === 'function', 'sparkPoints is exported')
   assert(internals.CSS.includes('.tm-spark'), 'the sparkline has a rule of its own')
