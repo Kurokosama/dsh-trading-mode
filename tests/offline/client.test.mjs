@@ -1179,6 +1179,7 @@ await check('positions: the total remembers what it was worth, one point a day',
   assert(internals.CSS.includes('.tm-portfolio__trend--open'), 'the expanded line has its own style');
   assert(internals.CSS.includes('.tm-portfolio__item { display: inline-flex; align-items: baseline; flex-wrap: wrap;'), 'a narrow card wraps the totals instead of breaking words');
   assert(internals.CSS.includes('font-variant-numeric: tabular-nums; white-space: nowrap; }'), 'a total never breaks mid-label');
+  assert(source.includes("'aria-expanded': trendLine ? (open ? 'true' : 'false') : null"), 'the expander reports whether it is open');
   return 'history recorded per day';
 });
 
