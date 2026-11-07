@@ -463,6 +463,36 @@ await check('0.5.1 AI: an unavailable DeepSeek explains itself in both panels', 
   return 'reason surfaced in the brief and analysis panels (en + zh)';
 });
 
+await check('brief: the last edition survives a reload, but not a language switch', async () => {
+  const store = new Map();
+  const previous = globalThis.window.localStorage;
+  globalThis.window.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  try {
+    const brief = { headline: 'Board 3 up, 1 down.', stocksTracked: 4, upCount: 3, downCount: 1, suggestions: ['AAPL holds 210.'] };
+    assert(internals.readBriefCache('en') === null, 'an empty store has no brief');
+    assert(internals.writeBriefCache(brief, 'en') === true, 'a valid brief is kept');
+    const back = internals.readBriefCache('en');
+    assert(back && back.headline === brief.headline, 'the same language reads it back');
+    assert(internals.readBriefCache('zh') === null, 'another language starts empty');
+    assert(internals.writeBriefCache({ headline: 3 }, 'en') === false, 'a headline that is not text is not cached');
+    assert(internals.writeBriefCache(null, 'en') === false, 'nothing is not cached');
+    store.set('tm-brief-last', '{"lang":"en","brief":{"headline":"x"' + 'y'.repeat(210000) + '}}');
+    assert(internals.readBriefCache('en') === null, 'an oversized blob is ignored rather than parsed');
+    store.set('tm-brief-last', 'not json');
+    assert(internals.readBriefCache('en') === null, 'broken json is ignored');
+    assert(String(internals.HomeView).includes('readBriefCache(lang)'), 'the card starts from the cache');
+    assert(String(internals.BriefCard).length > 0, 'the card still renders a cached brief');
+  } finally {
+    if (previous === undefined) delete globalThis.window.localStorage;
+    else globalThis.window.localStorage = previous;
+  }
+  return 'brief cache ok';
+});
+
 await check('brief: the rule edition is labelled and needs no model', async () => {
   const { BriefCard, makeT } = internals;
   const local = renderToString(
