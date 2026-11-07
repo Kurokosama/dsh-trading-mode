@@ -352,6 +352,26 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('search: a result says whether the name is already a position', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const row = { symbol: 'NVDA', market: 'US', exchange: 'NASDAQ', currency: 'USD', name: 'NVIDIA Corporation', nameZh: '英伟达' };
+  const render = (held) =>
+    renderToStaticMarkup(
+      React.createElement(internals.SearchRow, { row, active: false, owned: false, held, onOpen: () => {}, onAdd: () => {} }),
+    );
+  const marked = render(true);
+  assert(marked.includes('tm-result__held'), 'a held name carries the pill');
+  assert(marked.includes('>Held<'), 'the pill carries a word, not just a colour');
+  assert(internals.ZH['Held'] === '持仓', 'and the word is localised');
+  const plain = render(false);
+  assert(!plain.includes('tm-result__held'), 'a name without a position stays plain');
+  assert(internals.ZH['You hold this one'] === '你持有这只', 'the tooltip is localised');
+  assert(internals.CSS.includes('.tm-result__held'), 'the pill has its own style hook');
+  assert(String(internals.SearchBox).includes('held: Boolean(held && held(row))'), 'the box asks the helper per row');
+  return 'held marker ok';
+});
+
 await check('chart: the cost basis is drawn on the price scale, not guessed', async () => {
   const geo = internals.buildGeometry;
   const bars = [
