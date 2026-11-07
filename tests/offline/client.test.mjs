@@ -1173,6 +1173,10 @@ await check('positions: the total remembers what it was worth, one point a day',
   assert(zhT('recording…') === '记录中…', 'a single day says it is still recording');
   assert(/记录满两天/.test(zhT('A change appears once two days have been recorded')), 'the tooltip explains the wait');
   assert(internals.CSS.includes('.tm-portfolio__trend--first'), 'the pending state has its own style');
+  const wide = internals.historyPoints(both.USD, 240, 48, 30);
+  assert(wide && wide.count === 2 && wide.points !== line.points, 'the same series redraws at another size');
+  assert(internals.CSS.includes(".tm-portfolio__trend[role='button']"), 'the line is announced as clickable');
+  assert(internals.CSS.includes('.tm-portfolio__trend--open'), 'the expanded line has its own style');
   return 'history recorded per day';
 });
 
