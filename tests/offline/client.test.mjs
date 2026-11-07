@@ -897,6 +897,43 @@ await check('event board: three calendars merge into one chronological, filterab
   return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
+await check('event board: the held switch drops the reports the reader does not own', async () => {
+  const merge = internals.mergeEventRows;
+  const zh = internals.makeT('zh');
+  const payload = {
+    today: '2026-11-09',
+    bySymbol: {
+      NVDA: { date: '2026-11-12', session: 'post', epsForecast: 1.2 },
+      AAPL: { date: '2026-11-13', session: 'pre', epsForecast: null },
+      MSFT: { date: '2026-11-10', session: 'unknown', epsForecast: null },
+    },
+    macro: [{ kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 1 }],
+    closures: [],
+    expiries: [],
+  };
+  const everything = merge(payload, { days: 30 });
+  const held = merge(payload, { days: 30, heldOnly: true, held: new Set(['MSFT']) });
+  const heldArr = merge(payload, { days: 30, heldOnly: true, held: ['MSFT'] });
+  const nothingHeld = merge(payload, { days: 30, heldOnly: true, held: [] });
+  const symbols = (result) => result.rows.map((row) => row.symbol || row.type).sort().join(',');
+  assert(everything.rows.length === 4, `the unfiltered board keeps every row, got ${symbols(everything)}`);
+  // A CPI print moves every position at once, so the filter may only narrow the
+  // rows that name a single company.
+  assert(symbols(held) === 'MSFT,macro', `only the held name survives, got ${symbols(held)}`);
+  assert(symbols(heldArr) === 'MSFT,macro', 'a plain array works as the held set');
+  assert(symbols(nothingHeld) === 'AAPL,MSFT,NVDA,macro', `an empty held set disables the switch, got ${symbols(nothingHeld)}`);
+  assert(held.counts.earnings === 3, 'the chip counts stay board-wide, not filtered');
+  assert(zh('Held only') === '只看持仓', 'the chip localises');
+  assert(
+    zh('Only the earnings dates of names you hold; market-wide rows stay') === '只保留你持仓股票的财报日，宏观与休市仍然显示',
+    'the tooltip says what survives the filter',
+  );
+  const source = String(internals.EventBoard);
+  assert(source.includes('tm-events-held'), 'the switch is remembered between visits');
+  assert(source.includes("t('Held only')"), 'the chip is part of the board');
+  assert(source.includes('positions.size'), 'the chip only appears once a position exists');
+});
+
 await check('extended hours: a pre or post print rides the row and the detail header', async () => {
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');
