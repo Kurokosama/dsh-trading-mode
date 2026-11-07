@@ -517,6 +517,31 @@ async function main() {
     return 'macroSoon rides the brief input and ranks beside the breadth idea';
   });
 
+  await check('1.1: a pre or post print steers the next open, so it earns its own idea', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 188.2, changePct: -0.4, extended: { session: 'post', price: 182.9, changePct: -2.8, at: 1 } } },
+        { symbol: 'AAPL', quote: { price: 342.37, changePct: 0.8, extended: { session: 'post', price: 343.6, changePct: 0.36, at: 1 } } },
+        { symbol: 'VTI', quote: { price: 400, changePct: 0.2 } },
+      ],
+    });
+    assert.deepEqual(realised.stocks[0].afterHours, { session: 'post', changePct: -2.8 }, 'the post print rides the input compactly');
+    assert.equal(realised.stocks[1].afterHours.changePct, 0.36, 'a quiet after-hours move is carried, not filtered, at input time');
+    assert.equal(realised.stocks[2].afterHours, undefined, 'a stock without an extended print carries nothing');
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(en.some((line) => line.includes('NVDA') && line.includes('-2.8%') && line.includes('after the bell')), 'the en idea names the move and its session');
+    assert.ok(!en.some((line) => line.includes('+0.4%')), 'a sub-2% print does not take a line of its own');
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(zh.some((line) => line.includes('NVDA') && line.includes('盘后') && line.includes('-2.8%')), 'the zh idea localises the session');
+    // A pre-market gap on the same symbol reads differently and still counts.
+    const pre = derivedSuggestions(buildBriefInput({ stocks: [{ symbol: 'TSM', quote: { price: 300, extended: { session: 'pre', price: 312, changePct: 4, at: 1 } } }] }), 'en');
+    assert.ok(pre.some((line) => line.includes('TSM') && line.includes('+4.0%') && line.includes('in the pre-market')), 'a pre-market print says so');
+    // Malformed extended blocks must not invent a move.
+    const junk = buildBriefInput({ stocks: [{ symbol: 'X', quote: { price: 10, extended: { session: 'overnight', changePct: 9 } } }] });
+    assert.equal(junk.stocks[0].afterHours, undefined, 'an unknown session is dropped at input time');
+    return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
+  });
+
   await check('1.1: a shortened trading week takes the board-wide slot in the brief', () => {
     const realised = buildBriefInput({
       stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
