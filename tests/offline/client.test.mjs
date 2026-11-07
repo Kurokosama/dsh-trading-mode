@@ -352,6 +352,32 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('chart: the indicator grid also reads as one sentence', async () => {
+  const digest = internals.technicalDigest;
+  const t = internals.makeT('en');
+  const rich = digest({ trendAlignment: 'bullish', rsi14: 72, high52w: 100, volumeRatio20d: 2.1 }, 95, t);
+  assert(rich.startsWith('moving averages stacked up'), `trend phrase first, got "${rich}"`);
+  assert(rich.includes('RSI 72 stretched'), `stretch must be named, got "${rich}"`);
+  assert(rich.includes('5.0% below its 52-week high'), `distance must be unsigned, got "${rich}"`);
+  assert(rich.includes('2.1× normal volume'), `volume phrase, got "${rich}"`);
+  const near = digest({ trendAlignment: 'bearish', rsi14: 24, high52w: 100, volumeRatio20d: 0.4 }, 99.5, t);
+  assert(near.includes('stacked down'), `bearish phrase, got "${near}"`);
+  assert(near.includes('RSI 24 washed out'), `oversold phrase, got "${near}"`);
+  assert(near.includes('within 0.5% of its 52-week high'), `near-high wording, got "${near}"`);
+  assert(near.includes('0.4× quiet volume'), `quiet volume, got "${near}"`);
+  assert(digest({ rsi14: 55 }, 10, t) === 'RSI 55', 'a lone RSI is the whole line');
+  assert(digest(null, 10, t) === '', 'no block, no line');
+  assert(digest({}, null, t) === '', 'empty block stays quiet');
+  const zh = internals.makeT('zh');
+  const zhLine = digest({ trendAlignment: 'bullish', rsi14: 72, high52w: 100, volumeRatio20d: 2.0 }, 95, zh);
+  assert(zhLine.includes('均线多头排列') && zhLine.includes('RSI 72 偏高'), `zh line: ${zhLine}`);
+  assert(zhLine.includes('距 52 周高 5.0%'), `zh distance: ${zhLine}`);
+  assert(zhLine.includes('2.0× 常规量'), `zh volume: ${zhLine}`);
+  assert(internals.CSS.includes('.tm-chart__read'), 'the line needs its own style hook');
+  assert(String(internals.CandleChart).includes('tm-chart__read'), 'the chart must render the line');
+  return 'digest covered';
+});
+
 await check('§21 freshness wording is present and nothing claims live data', async () => {
   assert(detailHtml.includes('Updated') || homeHtml.includes('Data may be delayed') || detailHtml.includes('Data may be delayed'), 'a freshness stamp or the delayed note must appear');
   assert(detailHtml.includes('Data may be delayed'), '"Data may be delayed" must appear when data is not stale');
