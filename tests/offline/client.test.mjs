@@ -352,6 +352,30 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('overview: the money you hold is measured next to the list you watch', async () => {
+  const fn = internals.boardVsIndex;
+  const items = [{ symbol: '^GSPC', name: 'S&P 500', quote: { changePct: 0.2 } }];
+  const rows = [
+    { symbol: 'AAPL', quote: { changePct: 1 } },
+    { symbol: 'NVDA', quote: { changePct: 3 } },
+    { symbol: 'MSFT', quote: { changePct: -1 } },
+  ];
+  const all = fn(rows, items);
+  assert(all.board === 1, `board average, got ${all.board}`);
+  assert(all.heldN === 0 && all.heldBoard === null, 'no position set means no held average');
+  assert(all.heldGap === null, 'and no gap for it');
+  const some = fn(rows, items, '^GSPC', new Set(['NVDA']));
+  assert(some.heldN === 1 && some.heldBoard === 3, `held average over the owned rows, got ${some.heldBoard}`);
+  assert(Math.abs(some.heldGap - 2.8) < 1e-9, `held gap against the index, got ${some.heldGap}`);
+  assert(some.board === 1, 'the board average is unchanged by the held set');
+  const arrayForm = fn(rows, items, '^GSPC', ['nvda']);
+  assert(arrayForm.heldN === 1, 'an array works and is case-insensitive like the rest of the panel');
+  assert(internals.ZH['Held equal-weight'] === '持仓等权', 'the label is localised');
+  assert(internals.CSS.includes('.tm-vs__held'), 'the line has its own hook');
+  assert(String(internals.MarketOverview).includes('boardVsIndex(rows, items, \'^GSPC\', held)'), 'the card passes the held set through');
+  return 'held equal-weight ok';
+});
+
 await check('notes: the ticker inside a sentence is a link, and only a real ticker', async () => {
   const parts = internals.noteParts;
   const line = 'NVDA is 42% of your USD positions; at that weight its drawdown is your drawdown.';
