@@ -672,7 +672,7 @@ await check('index directory: aliases, dialects and provider capability', async 
   assert.equal(
     DEFAULT_INDEX_SYMBOLS.length,
     6,
-    `6 US headline indices (got ${DEFAULT_INDEX_SYMBOLS.length})`,
+    `7 US headline indices (got ${DEFAULT_INDEX_SYMBOLS.length})`,
   );
   const byMarket = INDEX_DIRECTORY.reduce((acc, item) => {
     acc[item.group] = (acc[item.group] || 0) + 1;
@@ -680,7 +680,7 @@ await check('index directory: aliases, dialects and provider capability', async 
   }, {});
   assert.deepEqual(
     byMarket,
-    { US: 6 },
+    { US: 7 },
     `index tab split per market (got ${JSON.stringify(byMarket)})`,
   );
   assert.equal(lookupIndex('vix').symbol, '^VIX', 'vix → ^VIX');
