@@ -684,6 +684,15 @@ await check('chart: the indicator grid also reads as one sentence', async () => 
   return 'digest covered';
 });
 
+await check('brief: the text can leave as a file, not only the clipboard', async () => {
+  assert(internals.saveTextFile('brief.txt', 'x') === false, 'a stubbed host cannot save');
+  assert(internals.saveTextFile('brief.txt', '') === false, 'nothing to save');
+  assert(String(internals.BriefCard).includes('saveTextFile'), 'the card offers the download');
+  assert(internals.ZH['Save'] === '保存', 'the button is localised');
+  assert(internals.ZH['Save the brief as a text file'] === '把简报存成纯文本文件', 'the tooltip is localised');
+  return 'save path covered';
+});
+
 await check('§21 freshness wording is present and nothing claims live data', async () => {
   assert(detailHtml.includes('Updated') || homeHtml.includes('Data may be delayed') || detailHtml.includes('Data may be delayed'), 'a freshness stamp or the delayed note must appear');
   assert(detailHtml.includes('Data may be delayed'), '"Data may be delayed" must appear when data is not stale');
