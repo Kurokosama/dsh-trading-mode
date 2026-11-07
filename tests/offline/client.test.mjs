@@ -1457,6 +1457,19 @@ await check('detail news: the same 24-hour window the home card offers, on one s
   return 'detail news window ok';
 });
 
+await check('chart: a weekly bar is one click away where it is legible', () => {
+  const css = internals.CSS;
+  const zhT = internals.makeT('zh');
+  assert(css.includes('.tm-range__split'), 'the size group is styled');
+  assert(css.includes('.tm-range--size'), 'the size chips are styled');
+  assert(zhT('One bar per day') === '每根日线', `daily tooltip localises, got ${zhT('One bar per day')}`);
+  assert(zhT('One bar per week') === '每根周线', `weekly tooltip localises, got ${zhT('One bar per week')}`);
+  assert(source.includes('WEEKLY_RANGES'), 'weekly ranges are declared');
+  assert(source.includes("ui.barSize === 'week' && WEEKLY_RANGES[range]"), 'the choice only applies where it is legible');
+  assert(source.includes("interval=${barSize}"), 'the request sends the chosen interval');
+  assert(source.includes("setStore({ barSize: size })"), 'the choice is remembered');
+});
+
 await check('index detail: an index opens its own page, unit and all, with the fund one click away', async () => {
   const { makeT } = internals;
   const zh = makeT('zh');
