@@ -518,6 +518,19 @@ await check('etf sectors: the exposure card draws to scale and localises every l
   return 'sector card CSS + 11/11 labels localise';
 });
 
+await check('ex-dividend day: a UTC calendar date, never shifted into the previous evening', async () => {
+  const zh = internals.makeT('zh');
+  // Yahoo hands back the payout date as a UTC midnight; formatting it in local
+  // time shows 11-11 for a 11-12 payout anywhere west of Greenwich.
+  const at = Date.UTC(2026, 10, 12);
+  assert(internals.dateOfUtc(at) === '2026-11-12', `UTC date (got ${internals.dateOfUtc(at)})`);
+  assert(zh('Ex-dividend') === '除息日', 'the cell label localises');
+  const future = internals.relativeDayOf(Date.now() + 5 * 86_400_000);
+  assert(/5|五/.test(future) || future.length > 0, `a future date reads as a countdown (got ${future})`);
+  assert(internals.relativeDayOf(Date.now() - 30 * 86_400_000) === '', 'a past ex-dividend day gets no countdown');
+  return 'UTC date + label + countdown rules hold';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));

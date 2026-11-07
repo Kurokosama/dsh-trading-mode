@@ -456,7 +456,16 @@ await check('company profile for AAPL (US-only build)', async () => {
     try {
       const out = await service.getProfile(symbol, { force: true });
       assert.ok(out.data.name, `${symbol} name`);
-      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'})`);
+      // The ex-dividend day arrives as a UTC midnight epoch; a seconds-vs-ms
+      // slip would land in 1970, and a missing one is legitimate for some names.
+      const exDiv = out.data.exDividendDate;
+      let exDivLabel = 'none';
+      if (exDiv != null) {
+        const year = new Date(exDiv).getUTCFullYear();
+        assert.ok(year >= 2024 && year <= 2028, `ex-dividend year plausible (got ${year})`);
+        exDivLabel = new Date(exDiv).toISOString().slice(0, 10);
+      }
+      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'}) exDiv=${exDivLabel}`);
     } catch (err) {
       const gap = upstreamGap(err);
       if (!gap) throw err;

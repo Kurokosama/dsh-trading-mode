@@ -109,6 +109,15 @@ test('schema: the sector mix keeps the real slicing, biggest first', () => {
   assert.equal(p.sectors[0].name, 'Technology')
 });
 
+test('schema: the ex-dividend day is kept as an epoch or dropped', () => {
+  const at = Date.UTC(2026, 10, 12); // 2026-11-12
+  const withDate = makeProfile({ symbol: 'AAPL', market: 'US', name: 'Apple', exDividendDate: at });
+  assert.equal(withDate.exDividendDate, at);
+  // A junk or zero date would render as 1970, so it must not survive.
+  assert.equal(makeProfile({ symbol: 'X', market: 'US', name: 'X', exDividendDate: 0 }).exDividendDate, null);
+  assert.equal(makeProfile({ symbol: 'X', market: 'US', name: 'X', exDividendDate: 'soon' }).exDividendDate, null);
+});
+
 test('schema: no sector input keeps the field empty rather than fabricating rows', () => {
   const p = makeProfile({ symbol: 'AAPL', market: 'US', name: 'Apple' });
   assert.equal(p.sectors, undefined);
