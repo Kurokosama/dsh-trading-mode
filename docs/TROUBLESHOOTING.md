@@ -82,16 +82,15 @@ The host log carries the same text on startup:
 ## 2. "Quotes work, but candles fail"
 
 **Cause.** Health is tracked **per provider capability**, not per provider
-(`healthScope(provider, feature)` → `eastmoney::candles`). A single flaky endpoint
+(`healthScope(provider, feature)` → `yahoo::candles`). A single flaky endpoint
 opens a cooldown for that capability only; the other capabilities keep answering.
 
 **Diagnose.** Look at the provider's `scopes` in the status payload:
 
 ```json
-{ "id": "eastmoney",
+{ "id": "stooq",
   "scopes": {
-    "search":  { "healthy": true,  "successes": 12, "cooldownRemainingMs": 0 },
-    "quote":   { "healthy": true,  "successes": 30, "cooldownRemainingMs": 0 },
+    "quote":   { "healthy": true,  "successes": 12, "cooldownRemainingMs": 0 },
     "candles": { "healthy": false, "failures": 3, "cooldownRemainingMs": 41230,
                  "lastError": "… socket hang up" } } }
 ```

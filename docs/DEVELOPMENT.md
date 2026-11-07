@@ -21,7 +21,7 @@ lib/trading/config.js     every market, chain, range, interval, policy and TTL
 lib/trading/service.js    facade: validation → router → cache → envelope (data + stale + source)
 lib/trading/router.js     provider chain walk, per-capability health, half-open probe, aggregation
 lib/trading/http.js       httpGet, rate limiter, ProviderHealth, healthScope, networkMode/transport
-lib/trading/providers/    one module per upstream (yahoo, eastmoney, tencent, stooq, sina, nasdaq, binance, gate, coinlore)
+lib/trading/providers/    one module per upstream (yahoo, stooq, nasdaq — the US-only build)
 lib/trading/{watchlist,settings,persist,cache}.js   storage: host storage domain first, atomic JSON fallback
 lib/trading/{symbols,directory,universe,indices,indicators,schema,errors,ai}.js
 tests/offline/            `npm test` — deterministic, no network

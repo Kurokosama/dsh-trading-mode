@@ -335,7 +335,7 @@ TTL 分盘中/休市两套，按市场会话状态自动切换：
 
 `GET /api/trading/status` 返回的字符串字段会经过 `sanitizeStatus()` / `redactDiagnostic()`：
 
-- 上游 URL → `https://push2.eastmoney.com/…`（只留 origin）
+- 上游 URL → 命中 provider 的公开 host（只留 origin，如 `stooq.com`）
 - IPv4（含端口）→ `[redacted-ip]:443`
 - 裸主机名 → `[redacted-host]`
 - 绝对路径 → `…/cache.json`（Windows 与 POSIX 都处理）
