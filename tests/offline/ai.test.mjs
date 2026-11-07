@@ -555,6 +555,32 @@ async function main() {
     return 'tag-cluster concentration idea rides beside the breadth line';
   });
 
+  await check('0.5.x: a price stretched from its own MA20 earns a chase note', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 500 }, technical: { technical: { ma20: 460 } } },
+        { symbol: 'INTC', quote: { price: 40 }, technical: { technical: { ma20: 44 } } },
+        { symbol: 'KO', quote: { price: 70 }, technical: { technical: { ma20: 69.5 } } },
+      ],
+    });
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(
+      en.some((line) => line.startsWith('NVDA') && line.includes('8.7%') && line.includes('20-day average') && line.includes('460.00')),
+      'the en stretch note quantifies the gap above the average',
+    );
+    assert.ok(
+      en.some((line) => line.startsWith('INTC') && line.includes('9.1% below') && line.includes('not blind averaging down')),
+      'the dislocation note fires on the downside and warns against averaging down',
+    );
+    assert.ok(!en.some((line) => line.startsWith('KO')), 'a row within 7% of its average earns no stretch note');
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(
+      zh.some((line) => line.startsWith('NVDA') && line.includes('20 日均线') && line.includes('8.7%')),
+      'the zh note localises the same read',
+    );
+    return 'MA20 stretch ideas ride the per-symbol ladder';
+  });
+
   await check('buildBriefInput ages the whole brief by its oldest row', () => {
     const stocks = [
       { symbol: 'AAPL', quote: { timestamp: Date.now() }, stale: false },
