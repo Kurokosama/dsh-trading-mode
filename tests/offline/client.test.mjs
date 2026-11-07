@@ -1028,6 +1028,23 @@ await check('brief: the rule edition is labelled and needs no model', async () =
   );
   assert(!modelled.includes('Rules only'), 'a model-written brief must not claim to be rules');
   assert(modelled.includes('Board 2 up, 1 down'), 'the headline still renders');
+  assert(modelled.includes('Strongest mover'), 'a best row that exists is drawn');
+  const skimpy = renderToString(
+    h(BriefCard, {
+      aiAvailable: true,
+      brief: {
+        headline: 'Board 2 up, 1 down',
+        stocksTracked: 3,
+        upCount: 2,
+        downCount: 1,
+        unusualVolume: [],
+        keyObservations: [],
+        suggestions: ['NVDA holds above its 20-day average'],
+      },
+    }),
+  );
+  assert(!skimpy.includes('Strongest mover'), 'a missing best row leaves no empty tile');
+  assert(!skimpy.includes('Largest decline'), 'a missing worst row leaves no empty tile');
   const source = String(BriefCard);
   assert(source.includes('disabled: loading'), 'the button is only blocked while a run is in flight');
   assert(source.includes('rule-based edition'), 'the hint explains what the fallback writes');
