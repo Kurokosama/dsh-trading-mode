@@ -48,3 +48,34 @@ test('schema: fundFamily is clamped like the other text fields', () => {
   const dirty = makeProfile({ symbol: 'QQQ', market: 'US', name: 'QQQ', fundFamily: '  Invesco   QQQ  Trust  ' })
   assert.equal(dirty.fundFamily, 'Invesco QQQ Trust')
 })
+
+test('schema: the top-ten holdings list is trimmed to presentable facts', () => {
+  const rows = [
+    { symbol: 'nvda', name: 'NVIDIA', weight: 9.1 },
+    { name: 'Nameless giant', weight: 7.2 },
+    { symbol: 'MSFT', name: 'Microsoft', weight: 8.0 },
+    { symbol: 'JUNK', name: 'dropped', weight: 'nope' },
+    { name: 'no weight', weight: null },
+    null,
+    { symbol: 'WEIRD', name: 'negative kept out', weight: -3 },
+  ]
+    .concat(Array.from({ length: 12 }, (_, index) => ({ symbol: `X${index}`, name: `Filler ${index}`, weight: 0.01 * (index + 1) })))
+  const p = makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO', holdings: rows })
+  assert.ok(Array.isArray(p.holdings) && p.holdings.length === 10, `expected 10 rows, got ${p.holdings && p.holdings.length}`)
+  // The honest top-of-book rows must not be crowded out by the filler.
+  assert.deepEqual(p.holdings.slice(0, 3).map((item) => item.symbol), ['NVDA', 'MSFT', undefined])
+  // A missing ticker keeps the name but never fabricates an investable row.
+  const nameless = p.holdings.find((item) => typeof item.symbol !== 'string')
+  assert.ok(nameless, 'the name-only row must survive filtering')
+  assert.equal(nameless.name, 'Nameless giant')
+  assert.equal(nameless.symbol, undefined)
+  // Junk weights disappear rather than render as filler rows.
+  assert.ok(!p.holdings.some((item) => item.symbol === 'JUNK' || item.symbol === 'WEIRD'))
+  assert.ok(p.holdings.every((item) => item.weight == null || item.weight >= 0))
+})
+
+test('schema: no holdings input keeps the field empty rather than fabricating rows', () => {
+  const p = makeProfile({ symbol: 'AAPL', market: 'US', name: 'Apple' })
+  assert.equal(p.holdings, undefined)
+})
+

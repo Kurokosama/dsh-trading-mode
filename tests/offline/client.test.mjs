@@ -493,6 +493,16 @@ await check('macro card: the curated calendar maps to bilingual, bilingual label
   return '6 kind labels + hint resolve in zh; detail strip gates at 3 days';
 });
 
+await check('etf holdings: the top-ten table ships with weight bars and bilingual titles', async () => {
+  const zh = internals.makeT('zh');
+  const en = internals.makeT('en');
+  assert(internals.CSS.includes('.tm-holdings') && internals.CSS.includes('.tm-hold__fill'), 'the holdings rows ship their theme-token CSS');
+  assert(String(en('Top holdings')) === 'Top holdings', 'English keeps the canonical card title');
+  assert(zh('Top holdings') === '前十大持仓', 'the card title localises');
+  assert(zh('weights in percent of the fund') === '权重为占基金比例（%）', 'the weight meta localises');
+  return 'holdings card CSS + bilingual titles resolve';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
