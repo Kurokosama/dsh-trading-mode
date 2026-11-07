@@ -1,6 +1,6 @@
 {
   "name": "dsh-trading-mode",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "DSH Trading Mode — AI 驱动的行情研究 / Watchlist 助手（美股 + 港股 + A 股 + 日股 + 加密货币）：五市场清单浏览、股票搜索、行情、市场指数、K 线、技术指标、DeepSeek 单股分析与 Watchlist Brief，中英双语界面，并提供 TradingView 内嵌图表与数据来源页面跳转。只做研究，不做交易。",
   "keywords": [
     "dsh",

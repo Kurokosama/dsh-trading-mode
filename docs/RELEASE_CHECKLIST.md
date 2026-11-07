@@ -132,7 +132,7 @@ instead):
 - [ ] `npm run test:client` passes (28 checks) — the three theme checks cover the switch, the
       follow-until-chosen precedence, and the opaque-palette CSS assertions.
 
-## 3c. Sidebar entry (0.8.2)
+## 3c. Sidebar entry (0.9.0)
 
 - [ ] After a page refresh, the left sidebar shows a **Trading Mode** row directly below **插件市场**
       (`order 2`, above **自动化任务**), with the chart glyph, and it is visible **before any conversation

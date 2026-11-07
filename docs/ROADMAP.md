@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **0.8.2** (see `package.json`; the changelog is the authoritative history).
+Current release: **0.9.0** (see `package.json`; the changelog is the authoritative history).
 
 This project is a research tool for one DSH installation. It is deliberately not a trading
 system, and the roadmap below is deliberately conservative: the honest constraint on progress
