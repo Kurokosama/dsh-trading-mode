@@ -1169,6 +1169,10 @@ await check('positions: the total remembers what it was worth, one point a day',
   assert(flat && flat.points.split(' ').every((pair) => pair.endsWith(',7')), 'a flat series runs down the middle');
   assert(internals.historyPoints([{ at: day, value: 900 }], 56, 14, 30) === null, 'one point cannot draw a line');
   assert(internals.makeT('zh')('{n}d', { n: 30 }) === '30 天', 'the window label is localised');
+  const zhT = internals.makeT('zh');
+  assert(zhT('recording…') === '记录中…', 'a single day says it is still recording');
+  assert(/记录满两天/.test(zhT('A change appears once two days have been recorded')), 'the tooltip explains the wait');
+  assert(internals.CSS.includes('.tm-portfolio__trend--first'), 'the pending state has its own style');
   return 'history recorded per day';
 });
 
