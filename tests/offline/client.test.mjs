@@ -2552,6 +2552,26 @@ await check('theme: every panel surface is painted opaque from the scheme palett
   return `${used.size} alias tokens mapped, ${css.length} CSS chars`;
 });
 
+await check('watchlist: the list can be ordered by what today did, not only by cost basis', async () => {
+  const costs = { 'US:NVDA': { price: 80, shares: 10 }, 'US:AAPL': { price: 200, shares: 2 }, 'US:MSFT': { price: 0, shares: 0 } };
+  const quote = (price, change) => ({ price, change, changePct: 1, timestamp: '2026-11-07T15:30:00Z', currency: 'USD' });
+  const aapl = { symbol: 'AAPL', market: 'US', quote: quote(210, 10) };
+  const nvda = { symbol: 'NVDA', market: 'US', quote: quote(100, 20) };
+  const msft = { symbol: 'MSFT', market: 'US', quote: quote(300, 0) };
+  assert(internals.todayOf(aapl, costs) === 20, 'AAPL: 2 shares × +10');
+  assert(internals.todayOf(nvda, costs) === 200, 'NVDA: 10 shares × +20');
+  assert(internals.todayOf(msft, costs) === null, 'a zero-share placeholder is not a position');
+  assert(internals.todayOf({ symbol: 'KO', market: 'US', quote: quote(60, 1) }, costs) === null, 'no cost basis, no today');
+  assert(internals.todayOf(null, costs) === null, 'no row, no number');
+  const source = String(internals.WatchlistCard);
+  assert(source.includes("sort.key === 'today'"), 'the sort has its own branch');
+  assert(source.includes('todayOf('), 'and reads the shared helper');
+  assert(source.includes("t('By day')"), 'the chip exists');
+  assert(internals.ZH['By day'] === '按今日', 'the chip is localised');
+  assert(internals.ZH['Sort by what today did to the position (click again to reverse, a third click restores your order)'].includes('按今天'), 'the tooltip is localised');
+  return 'today sort ok';
+});
+
 await check('watchlist: a held row says what today did to it, not only where it sits against cost', async () => {
   const row = (quote, cost) => ({ symbol: 'AAPL', market: 'US', isFavorite: false, quote, cost });
   const quote = { price: 210, change: 10, changePct: 5, timestamp: '2026-11-07T15:30:00Z', currency: 'USD' };
