@@ -163,10 +163,10 @@ commitments here. The fork's own open items are the last two.
 
 ### Fork-specific
 
-- **Component screenshots** — the offline suite renders the real components (event board,
-  rating strip, overview line, chart) through `react-dom/server`, and the same fixtures can be
-  exported to a static page for a capture. Any image added here must say it is a fixture
-  render, not a live panel, because the panel itself needs an authorised `dsh web` URL.
+- **Product screenshots** — blocked, not planned: `docs/screenshots/README.md` allows only
+  captures of a running DSH session, and the panel needs the tokenised URL that `dsh web`
+  prints. Component fixtures rendered through `react-dom/server` are not product screenshots
+  and will not be published as such; the directory stays empty until a live capture exists.
 - **Brief density against a live model** — the rule edition is covered offline, but whether the
   model-written edition keeps to five observations and three to five conditional ideas can only
   be checked in a session that has a model configured.

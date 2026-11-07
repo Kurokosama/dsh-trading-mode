@@ -36,6 +36,12 @@ here together with its caption (see the checklist below).
 
 ## Capturing one
 
+The panel is not reachable from the bare port: `http://127.0.0.1:<port>` answers
+`dsh web authentication required`, and only the tokenised URL that `dsh web` prints opens it.
+Open that URL first, fill the watchlist with symbols you are willing to publish, then capture.
+A render of the same components produced from fixtures is a development preview, not a product
+screenshot, and does not belong in this directory.
+
 Before you start: run DSH, make sure the plugin is installed and loaded, and confirm the panel shows
 what you intend to document.
 
