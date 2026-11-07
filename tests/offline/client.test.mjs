@@ -606,6 +606,24 @@ await check('price alerts: bounds are per market, and only a real price fires th
   return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
 });
 
+await check('price alerts: the watched price is the latest print, extended hours included', async () => {
+  assert(internals.CSS.includes('.tm-alerts__sess'), 'the banner labels which session an extended print came from');
+  const print = internals.latestPrint;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  assert(same(print({ price: 100, extended: null }), { price: 100, session: 'regular' }), 'regular hours watch the regular price');
+  // After the bell the regular price is frozen, so the after-hours print is the latest trade.
+  assert(same(print({ price: 100, extended: { session: 'post', price: 101.5 } }), { price: 101.5, session: 'post' }), 'a post print becomes the watched price');
+  assert(same(print({ price: 100, extended: { session: 'pre', price: 98.25 } }), { price: 98.25, session: 'pre' }), 'so does a pre print');
+  // A malformed block must never shadow a good regular price.
+  assert(same(print({ price: 100, extended: { session: 'post', price: null } }), { price: 100, session: 'regular' }), 'a broken extended block falls back');
+  assert(same(print({ price: 100, extended: { session: 'overnight', price: 5 } }), { price: 100, session: 'regular' }), 'an unknown session is ignored');
+  assert(print({ price: null, extended: null }) === null, 'no print at all means nothing to watch');
+  assert(print(null) === null, 'a missing quote is tolerated');
+  const latest = print({ price: 100, extended: { session: 'post', price: 151 } });
+  assert(internals.alertHit(latest.price, { above: 150, below: null }) === 'above', 'the alert fires on the print it is handed');
+  return 'extended print wins while fresh, broken blocks fall back, no print no alarm';
+});
+
 await check('session chip: NYSE holidays and early closes override the weekday clock', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-session__note') && internals.CSS.includes('.tm-session--holiday'), 'the chip ships its note and holiday styles');
