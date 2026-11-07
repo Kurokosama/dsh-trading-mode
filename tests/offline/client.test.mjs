@@ -852,6 +852,22 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('detail: the profile reads as facts plus a summary that does not wall off the page', () => {
+  const I = internals
+  const CSS = I.CSS
+  const zhT = I.makeT('zh')
+  assert(CSS.includes('.tm-about__facts'), 'the fact row has its own layout')
+  assert(CSS.includes('-webkit-line-clamp: 3'), 'a long summary is clamped to three lines')
+  assert(CSS.includes('.tm-desc--clamp') && CSS.includes('.tm-about__more'), 'clamped text and its toggle are both styled')
+  assert(zhT('Sector') === '板块' && zhT('Industry') === '行业', 'the fact labels are localised')
+  assert(zhT('Website') === '官网' && zhT('Country') === '国家', 'website and country are localised too')
+  assert(zhT('Show more') === '展开全文' && zhT('Show less') === '收起', 'the toggle reads as a pair')
+
+  assert(I.siteOf('https://www.apple.com/iphone/') === 'apple.com/iphone', `scheme, www and the trailing slash go (got ${I.siteOf('https://www.apple.com/iphone/')})`)
+  assert(I.siteOf('http://vanguard.com') === 'vanguard.com', 'a bare host survives')
+  assert(I.siteOf('') === '' && I.siteOf(null) === '' && I.siteOf(undefined) === '', 'nothing in, nothing out')
+})
+
 await check('news: the home feed can be held to the last day, and it says when that is empty', () => {
   const I = internals
   const CSS = I.CSS
