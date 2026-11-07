@@ -569,6 +569,11 @@ await suite.check('brief: without a model the caller still gets a rule edition',
   assert.ok(value.brief.headline, 'a headline is still written');
   assert.ok(Array.isArray(value.brief.suggestions), 'the derived action list rides along');
   assert.ok(value.brief.suggestions.length >= 1, 'at least one line, or the card would look empty');
+  // The fact-card digest rides along so hover tooltips can cite the same numbers.
+  assert.ok(Array.isArray(value.meta.stocks) && value.meta.stocks.length === 1, 'mea stocks shipped');
+  assert.equal(value.meta.stocks[0].symbol, 'AAPL');
+  assert.ok(Number.isFinite(value.meta.stocks[0].price), 'a price is present');
+  assert.ok(!('name' in value.meta.stocks[0]) && !('tags' in value.meta.stocks[0]), 'digest stays numeric-only');
 
   // Any other error is a real failure and must not be swallowed by the fallback.
   ai.watchlistBrief = async () => {

@@ -1846,6 +1846,28 @@ await check('event board: calendar entries carry the minute the print lands', as
 });
 
 
+await check('brief: a suggestion carries the facts it was read against', async () => {
+  const t = internals.makeT('en');
+  const zh = internals.makeT('zh');
+  const why = internals.suggestionWhy('NVDA — the momentum attempt is back in play', [
+    { symbol: 'NVDA', currency: 'USD', price: 180.5, changePct: -2.1, trendAlignment: 'bullish', rsi14: 72, high52w: 200, volumeRatio20d: 2.1, earningsInDays: 3 },
+    { symbol: 'AAPL', price: 'n/a' },
+  ], t);
+  if (!why) throw new Error('digest facts vanished');
+  if (!why.includes('2.1%')) throw new Error(why); // signed() renders U+2212, so match the digits only
+  if (!why.includes('52-week high')) throw new Error(why);
+  if (!why.includes('stretched')) throw new Error(why);
+  if (!why.includes('earnings in 3d')) throw new Error(why);
+  if (internals.suggestionWhy('keep some dry powder', ['x'], t) !== '') throw new Error('no-lead lines stay silent');
+  if (internals.suggestionWhy('AAPL — hold the line', [{ symbol: 'AAPL' }], t) !== '') throw new Error('no price, no tooltip');
+  if (internals.suggestionWhy(null, [{ symbol: 'A', price: 1 }], t) !== '') throw new Error('junk input handled');
+  if (zh('earnings in {n}d', { n: 3 }) !== '3 天后出财报') throw new Error('zh earnings key.');
+  if (!String(internals.BriefCard).includes('suggestionWhy(line, brief.meta && brief.meta.stocks, t)')) throw new Error('BriefCard must read the digest');
+  if (!String(internals.BriefCard).includes('tm-brief__why')) throw new Error('the marker chip must render');
+  if (!String(internals.CSS).includes('.tm-brief__why')) throw new Error('CSS for the why chip is missing');
+  return 'suggestions now cite their facts on hover';
+});
+
 await check('brief: an action idea says whether it lands on a position you hold', async () => {
   const rows = [
     { symbol: 'NVDA', market: 'US', quote: { price: 100, changePct: 1.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },

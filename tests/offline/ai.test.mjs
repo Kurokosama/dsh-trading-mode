@@ -22,6 +22,7 @@ import {
   buildUserMessage,
   derivedSuggestions,
   localBrief,
+  stocksDigest,
   localNewsDigest,
   NEWS_SYSTEM_PROMPT,
   normalizeBrief,
@@ -1008,6 +1009,30 @@ await check('1.1: a defensive tape frames every row before the row-level ideas',
   const lines = localNewsDigest(fed);
   assert.deepEqual(lines, ['NVDA · 2', 'AAPL · 1'], 'counts first, ticker order alphabetical on ties, unknown tickers dropped');
   assert.match(NEWS_SYSTEM_PROMPT, /digest/);
+});
+
+await check('1.2: meta carries the numeric-only digest a hover tooltip can rely on', async () => {
+  const digested = stocksDigest([
+    { symbol: 'NVDA', name: 'NVIDIA', price: 180, changePct: 2.4, rsi14: 72, high52w: 200, tags: ['test'], trendAlignment: 'bullish' },
+    { symbol: 'AAPL', quote: { price: 270 } },
+    null,
+  ], 12);
+  if (digested.length !== 1) throw new Error(`expected only priced rows: ${JSON.stringify(digested)}`);
+  if (digested[0].symbol !== 'NVDA' || digested[0].price !== 180) throw new Error('row fields lost');
+  if (digested[0].name || digested[0].tags) throw new Error('digest must stay numeric, no names or tags');
+  if (!Object.prototype.hasOwnProperty.call(digested[0], 'rsi14')) throw new Error('rsi14 missing');
+  if (Object.prototype.hasOwnProperty.call(digested[0], 'volumeRatio20d')) throw new Error('absent fields must stay absent');
+  if (stocksDigest([]).length !== 0) throw new Error('empty input must digest to []');
+  if (stocksDigest(null).length !== 0) throw new Error('null input must digest to []');
+  if (stocksDigest([{ symbol: 'X', price: 'n/a' }]).length !== 0) throw new Error('unparsable price must drop the row');
+  const capped = stocksDigest(Array.from({ length: 15 }, (_, i) => ({ symbol: 'S' + i, price: i + 1 })), 12);
+  if (capped.length !== 12 || capped[11].symbol !== 'S11') throw new Error('cap not honoured');
+  const path = (await import('node:path')).default;
+  const { readFileSync } = (await import('node:fs'));
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
+  const libPath = path.join(repoRoot, 'lib', 'trading', 'ai.js');
+  if (!readFileSync(libPath, 'utf8').includes('stocks: stocksDigest(input.stocks)')) throw new Error('watchlistBrief meta must ship the digest');
+  return 'digest keeps the facts and drops everything else';
 });
 
 await check('the brief can be written without a model, and it says so', () => {
