@@ -667,6 +667,24 @@ await check('position alerts: a loss threshold fires only on a real position', a
   return 'a percent threshold, keyed by market, silent without a position';
 });
 
+await check('alerts: a session move is an event, so it can fire on its own', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('day move') === '单日波动 %', 'the move field localises');
+  assert(zh('{pct} today') === '今日 {pct}', 'the banner phrase localises');
+  const armed = internals.alertOf({ 'US:AAPL': { move: '5' } }, { symbol: 'AAPL', market: 'US' });
+  assert(armed && armed.move === 5, 'a typed threshold is a number');
+  assert(internals.moveHit({ changePct: -5.2 }, armed) === 'down', 'a 5.2% slide fires');
+  assert(internals.moveHit({ changePct: 5 }, armed) === 'up', 'the threshold is inclusive on the way up');
+  assert(internals.moveHit({ changePct: -4.9 }, armed) === null, 'a 4.9% slide stays quiet');
+  assert(internals.moveHit({ changePct: null }, armed) === null, 'no change, no event');
+  assert(internals.moveHit({ changePct: -9 }, { above: 100 }) === null, 'a price-only alert never claims a move');
+  assert(internals.alertLevel('down', null, null, { changePct: -5.2 }) === 5.2, 'the level is the absolute move');
+  assert(internals.alertSnoozed('down', 5.2, { down: 5 }, 1) === true, 'a 5% move stays dismissed at 5.2%');
+  assert(internals.alertSnoozed('down', 6.4, { down: 5 }, 1) === false, 'it returns once the move is a point deeper');
+  assert(internals.alertBoundsText(armed, zh, 'USD').includes('单日波动'), 'the tooltip names the move bound');
+  return 'move threshold parses, fires both ways, and snoozes by a point';
+});
+
 await check('price alerts: a dismissed alert stays quiet until the price moves on', async () => {
   const zh = internals.makeT('zh');
   assert(zh('Dismiss until the price moves 1% further').includes('1%'), 'the dismiss button says what it will take to bring the alert back');
