@@ -352,6 +352,21 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('detail: the header says when this page is already a position', async () => {
+  const badge = internals.holdingBadge;
+  assert(badge({ price: 180, shares: 12 }).shares === 12, 'a real position comes back');
+  assert(badge({ price: 180, shares: 0 }) === null, 'zero shares is a placeholder, not a position');
+  assert(badge({ price: 180 }) === null, 'shares are required');
+  assert(badge({ shares: 12 }) === null, 'a cost-less position cannot be described');
+  assert(badge(null) === null, 'nothing to say');
+  assert(badge({ price: 0, shares: 3 }) === null, 'a zero price is not a cost');
+  assert(internals.ZH['Holding {shares} @ {cost}'] === '持仓 {shares} 股 · 成本 {cost}', 'localised label');
+  assert(internals.CSS.includes('.tm-badge--held'), 'the badge has its own hook');
+  assert(String(internals.DetailView).includes('tm-badge--held'), 'the detail header renders it');
+  assert(String(internals.DetailView).includes('holdingBadge(myCost)'), 'and reads it from the stored cost');
+  return 'holding badge ok';
+});
+
 await check('overview: the money you hold is measured next to the list you watch', async () => {
   const fn = internals.boardVsIndex;
   const items = [{ symbol: '^GSPC', name: 'S&P 500', quote: { changePct: 0.2 } }];
