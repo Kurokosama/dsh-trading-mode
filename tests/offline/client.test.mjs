@@ -546,6 +546,17 @@ await check('exchange closures: half days are dated, and the card localises', as
   return 'closure card CSS + full-day and half-day labels localise';
 });
 
+await check('extended hours: a pre or post print rides the row and the detail header', async () => {
+  const zh = internals.makeT('zh');
+  const en = internals.makeT('en');
+  assert(internals.CSS.includes('.tm-row__flag--ext'), 'the row chip ships its CSS');
+  assert(internals.CSS.includes('.tm-detail__ext'), 'the detail line ships its CSS');
+  assert(zh('Extended hours') === '盘前盘后', 'the section label localises');
+  assert(zh('pre-market') === '盘前', 'the pre-market label localises');
+  assert(zh('after close') === '盘后', 'the post-close label localises');
+  return 'extended-hours chip and detail line localise';
+});
+
 await check('analyst view: a consensus band, and every rating label localises', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-arb__track') && internals.CSS.includes('.tm-arb__pin'), 'the consensus band ships its CSS');

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { makeProfile } from '../../lib/trading/schema.js'
+import { makeExtended, makeProfile, makeQuote } from '../../lib/trading/schema.js'
 
 test('schema: profile normalization keeps the dividend and fund facts usable', () => {
   // Yahoo quoteSummary/v10 reports summaryDetail.dividendYield as a fraction
@@ -172,4 +172,26 @@ test('schema: growth and margin ratios arrive as fractions and leave as percent'
   // Nothing usable means no card, not a grid of dashes.
   assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO', stats: {} }).stats, undefined)
   assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO' }).stats, undefined)
+})
+
+test('schema: an extended-hours print keeps its session and drops when it cannot be trusted', () => {
+  // v7 sends both sessions in one row; only the live one is meaningful, so the
+  // session travels with the number instead of being inferred downstream.
+  assert.deepEqual(
+    makeExtended({ session: 'post', price: 342.65, change: 0.27999878, changePct: 0.08178251, at: 1794013183000 }),
+    { session: 'post', price: 342.65, change: 0.28, changePct: 0.08, at: 1794013183000 },
+  )
+  // No session stamp, no price, or a nonsense session: nothing to show.
+  assert.equal(makeExtended({ price: 342.65 }), null)
+  assert.equal(makeExtended({ session: 'post' }), null)
+  assert.equal(makeExtended({ session: 'overnight', price: 342.65 }), null)
+  assert.equal(makeExtended({ session: 'pre', price: 0 }), null)
+  // A missing change is a price, not an error — the chip just shows the session.
+  assert.deepEqual(makeExtended({ session: 'pre', price: 341.2 }), { session: 'pre', price: 341.2, change: null, changePct: null, at: null })
+
+  const quote = makeQuote({ symbol: 'AAPL', market: 'US', price: 342.37, change: -1.8, changePct: -0.52, extended: { session: 'post', price: 342.65, changePct: 0.08178251 } })
+  assert.equal(quote.extended.session, 'post')
+  assert.equal(quote.extended.changePct, 0.08)
+  // A regular-session quote must stay free of the key so the chip never renders.
+  assert.equal('extended' in makeQuote({ symbol: 'AAPL', market: 'US', price: 342.37 }), false)
 })

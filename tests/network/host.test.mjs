@@ -444,6 +444,23 @@ await check('market symbols: a bare US ticker resolves unchanged', async () => {
   return `${out.data.symbol} ${out.data.price} ${out.data.currency}`;
 });
 
+await check('extended hours: a pre or post print carries its own session stamp', async () => {
+  const out = await service.getQuote('AAPL', { force: true });
+  const ext = out.data.extended || null;
+  // Outside a pre/post window (and beyond the freshness cut) there is nothing to
+  // publish — so this asserts the *shape* whenever upstream does send one, and
+  // records the absence rather than inventing a pass.
+  if (ext) {
+    assert.ok(ext.session === 'pre' || ext.session === 'post', `session is pre or post (got ${ext.session})`);
+    assert.ok(Number.isFinite(ext.price) && ext.price > 0, 'price is a positive number');
+    assert.ok(ext.at === null || Number.isFinite(ext.at), 'timestamp is a number when present');
+    assert.ok(ext.changePct === null || Math.abs(ext.changePct) < 100, 'change percent stays in a sane band');
+    return `AAPL ${ext.session} ${ext.price} ${ext.changePct}% at ${ext.at ? new Date(ext.at).toISOString() : '—'}`;
+  }
+  assert.equal('extended' in out.data, false, 'no extended block means the key is absent, not null');
+  return 'no extended print outside the pre/post windows';
+});
+
 await check('invalid symbol is rejected', async () => {
   await assert.rejects(() => service.getQuote('NOT A SYMBOL!!'), (err) => err instanceof TradingError);
   return 'rejected';
