@@ -642,6 +642,29 @@ await check('price alerts: the watched price is the latest print, extended hours
   return 'extended print wins while fresh, broken blocks fall back, no print no alarm';
 });
 
+await check('after hours: the board only lists prints that actually moved', async () => {
+  const I = internals
+  const movers = I.afterHoursMovers([
+    { symbol: 'AAPL', quote: { extended: { session: 'post', price: 342.65, changePct: 0.08 } } },
+    { symbol: 'NVDA', quote: { extended: { session: 'post', price: 180, changePct: -2.4 } } },
+    { symbol: 'VOO', quote: { extended: { session: 'pre', price: 670, changePct: 1.3 } } },
+    { symbol: 'SPY', quote: { price: 700 } },
+    { symbol: 'QQQ', quote: { extended: { session: 'overnight', price: 600, changePct: 5 } } },
+    { symbol: 'IWM', quote: { extended: { session: 'post', price: 0, changePct: 3 } } },
+  ])
+  assert(movers.length === 2, 'a 0.08% drift, a bare quote, an unknown session and a zero price all drop out')
+  assert(movers[0].row.symbol === 'NVDA', 'the steepest move leads the board')
+  assert(movers[1].row.symbol === 'VOO', 'a pre-market print counts the same as a post-market one')
+  assert(movers[0].session === 'post' && movers[1].session === 'pre', 'each row keeps its own session')
+  assert(I.afterHoursMovers([]).length === 0, 'no rows, no board')
+  assert(I.afterHoursMovers(null).length === 0, 'a missing list cannot throw')
+  assert(/\.tm-ah__row/.test(I.CSS) && /\.tm-ah__pct/.test(I.CSS), 'the board ships its own styles')
+  const zh = I.makeT('zh')
+  assert(zh('After-hours moves') === '盘前盘后异动', 'the card title localises')
+  assert(zh('Change since the previous regular close').includes('收盘'), 'the tooltip names the baseline it measures from')
+  return 'extended prints above 1% only'
+})
+
 await check('position alerts: a loss threshold fires only on a real position', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-alerts__what'), 'the banner carries the reason a row fired');
