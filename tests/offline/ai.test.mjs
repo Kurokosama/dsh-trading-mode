@@ -576,7 +576,36 @@ async function main() {
     return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
   });
 
-  await check('1.1: the consensus target only speaks when it disagrees by a margin', () => {
+  await check('1.1: a busy tape never crowds out the single-row ideas', () => {
+  const stocks = ['NVDA', 'AAPL', 'MSFT'].map((symbol) => ({
+    symbol,
+    tags: ['core'],
+    quote: { price: 100, changePct: -0.5 },
+    technical: { technical: { trendAlignment: 'bullish-stack' } },
+  }));
+  const input = buildBriefInput({
+    stocks,
+    earnings: {
+      today: '2026-11-07',
+      bySymbol: { NVDA: { date: '2026-11-08' }, AAPL: { date: '2026-11-09' }, MSFT: { date: '2026-11-10' } },
+    },
+    tape: [
+      { symbol: '^GSPC', name: 'S&P 500', price: 5000, changePct: -1.8 },
+      { symbol: '^VIX', name: 'VIX', price: 26.4, changePct: 4.1 },
+    ],
+    analysts: stocks.map((s) => ({ symbol: s.symbol, targetMean: 150, price: 100, rating: 'buy', count: 20 })),
+  });
+  const en = derivedSuggestions(input, 'en');
+  assert.equal(en.length, 5, `the ladder still fills five slots, got ${en.length}`);
+  // Three board-wide lines at most: the tape, the print cluster, one target.
+  assert(en[0].includes('The tape is defensive'), `the tape leads, got ${en[0]}`);
+  assert(en.some((line) => line.includes('report within three days')), 'the cluster still speaks');
+  assert.equal(en.filter((line) => line.includes('consensus target')).length, 1, 'targets do not take every slot');
+  assert(en.some((line) => line.includes('reports earnings')), 'a row that prints still gets its line');
+  return 'board-wide caps at three, rows keep two';
+});
+
+await check('1.1: the consensus target only speaks when it disagrees by a margin', () => {
   const input = buildBriefInput({
     stocks: [
       { symbol: 'AAPL', price: 300, changePct: 0.4 },
