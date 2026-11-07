@@ -663,6 +663,18 @@ await check('alerts: the history keeps what fired, newest first, without repeati
   assert(reason({ hit: 'loss', pct: -12.5 }).includes('−12.50%'), 'a drawdown keeps its percent');
   assert(reason({ hit: 'up', pct: 3.1 }).includes('+3.10%'), 'a session move keeps its percent');
   assert(reason(null) === '', 'no entry renders nothing');
+
+  // The card can be narrowed to the current day; older entries stay in the list.
+  const today = new Date(2026, 10, 7, 15, 0, 0).getTime();
+  const yesterday = new Date(2026, 10, 6, 9, 0, 0).getTime();
+  const todays = internals.alertLogToday([{ at: today }, { at: yesterday }, { at: null }], today);
+  assert(todays.length === 1 && todays[0].at === today, 'only entries from the current day survive the filter');
+  assert(internals.alertLogToday([], today).length === 0, 'an empty history filters to nothing');
+  assert(internals.alertLogToday(null, today).length === 0, 'a missing history is tolerated');
+  assert(internals.CSS.includes('.tm-alog__chip--on'), 'the today chip has a pressed state');
+  assert(zh('Nothing has fired today.').includes('今天'), 'the empty state is localised');
+  // Keyboard users tab through dozens of small buttons on this panel.
+  assert(internals.CSS.includes('.tm-page :focus-visible'), 'keyboard focus is visible everywhere');
 });
 
 await check('price alerts: the watched price is the latest print, extended hours included', async () => {
