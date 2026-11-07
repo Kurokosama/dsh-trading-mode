@@ -47,6 +47,7 @@
   行还带一枚占比 chip（`25.0%`，超过 40% 转琥珀色），集中度不用翻计算器就能看见。个股页还会
   在标题下点出两天内的宏观发布（口径、时间、一句影响说明），免得只盯形态忘了今天有数据。填了持仓的
   标的会把分红换算成年化金额与成本收益率，而不是只显示每股分红。
+  事件卡默认只铺开最近的八行，其余收在「展开另外 N 件」后面。
 这些本地数据只存在浏览器 `localStorage`，不上传。
 
 上游修复仍可按需 cherry-pick：`git remote add upstream https://github.com/YuumaKobayashi/dsh-trading-mode.git`。

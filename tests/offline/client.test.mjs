@@ -1005,6 +1005,28 @@ await check('event board: the two-day window is the desk view, not a planning vi
   assert(source.includes("t('Today and tomorrow')"), 'the narrow one is not labelled "2d window"')
 })
 
+await check('event board: a long window shows the near dates first and holds the rest back', async () => {
+  const page = internals.eventPage
+  const many = Array.from({ length: 12 }, (_, i) => ({ key: `row${i}`, days: i }))
+  const first = page(many, false)
+  assert(first.rows.length === 8, `eight rows fit on a screen, got ${first.rows.length}`)
+  assert(first.hidden === 4, `the rest is counted, not dropped, got ${first.hidden}`)
+  assert(first.rows[0].days === 0 && first.rows[7].days === 7, 'the head of the list is the soonest date')
+  const all = page(many, true)
+  assert(all.rows.length === 12 && all.hidden === 0, 'expanding reveals everything')
+  const small = page(many.slice(0, 3), false)
+  assert(small.hidden === 0, 'a short board has nothing to expand')
+  assert(page(null, false).rows.length === 0, 'no rows is an empty page, not a crash')
+  assert(page(many, false, 4).rows.length === 4, 'the cap is a parameter')
+  const zh = internals.makeT('zh')
+  assert(zh('Show the other {n}', { n: 4 }) === '展开另外 4 件', 'the toggle counts what it hides')
+  assert(zh('Show less') === '收起', 'and can be undone in one word')
+  const source = String(internals.EventBoard)
+  assert(source.includes('eventPage(rows, expanded)'), 'the board pages its own rows')
+  assert(source.includes('tm-ev__more'), 'the toggle is rendered')
+  assert(String(internals.CSS).includes('.tm-ev__more'), 'and styled')
+})
+
 await check('event board: the held switch drops the reports the reader does not own', async () => {
   const merge = internals.mergeEventRows;
   const zh = internals.makeT('zh');
