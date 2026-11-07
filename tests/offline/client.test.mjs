@@ -227,8 +227,8 @@ await check('apply registers the sidebar row and its main panel', async () => {
   assert(!('id' in page.options), 'keyed main panels register a key, not an id');
   assert(row.injectKey === 'sidebar.panellist', 'the row belongs to the sidebar slot');
   assert(
-    page.injectKey === null,
-    'the page must register outside the sidebar injection: a late or missing sidebar slot must not leave the host with a selectable id and nothing to draw',
+    page.injectKey === 'main',
+    'the page must be injected through the main slot: the host mounts panels from that injection, and registering it from the sidebar callback leaves the page area empty',
   );
   assert(
     registry.every((entry) => entry.key !== 'conversation.session.header.actions'),
