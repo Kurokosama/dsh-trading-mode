@@ -19,6 +19,7 @@ import {
   buildBriefInput,
   buildStockInput,
   buildUserMessage,
+  normalizeBrief,
   qualityFor,
   recencyOf,
 } from '../../lib/trading/ai.js';
@@ -249,6 +250,25 @@ async function main() {
     assert.equal(meta.stocksTracked, 2);
     assert.equal(meta.lang, 'zh');
     assert.ok(/Simplified Chinese/.test(llm.calls[0].system), 'zh runs must carry the localisation directive');
+  });
+
+  await check('brief action ideas: model text passes through, otherwise measured levels fill in (0.9.x)', () => {
+    const input = {
+      stocks: [
+        { symbol: 'AAPL', price: 99.5, changePct: 0.4, high52w: 100, low52w: 70, volumeRatio20d: 2.1, rsi14: 74 },
+        { symbol: 'MSFT', price: 300, changePct: -0.6, high52w: 340, low52w: 298, volumeRatio20d: 1.1, rsi14: 41 },
+      ],
+    };
+    const fromModel = normalizeBrief({ headline: 'x', suggestions: ['AAPL 突破 100 需要放量', 'MSFT 308 是最近的失效位'] }, input, 'zh');
+    assert.equal(fromModel.suggestions.length, 2, 'model-written ideas pass through untouched');
+    const derived = normalizeBrief({ headline: 'x' }, input, 'zh');
+    assert.ok(derived.suggestions.length >= 3, 'a brief without model ideas still carries measured ones');
+    assert.ok(derived.suggestions.some((line) => /AAPL/.test(line) && /100\.00/.test(line)), 'the 52w-high case prints the measured high');
+    assert.ok(derived.suggestions.some((line) => /AAPL/.test(line) && /20 日均量/.test(line)), 'the volume case names the measured ratio');
+    assert.ok(!/do your own research|guarantee/i.test(derived.suggestions.join(' ')), 'no generic filler, no promises');
+    const kept = normalizeBrief({ headline: 'x', suggestions: ['  ', 42, 'AAPL 103 失守则回踩 MA20'] }, input, 'en');
+    assert.deepEqual(kept.suggestions, ['AAPL 103 失守则回踩 MA20'], 'junk suggestion strings are dropped, not rendered');
+    return 'brief suggestions pass through, fall back to measured levels, junk filtered';
   });
 
   await check('a late-bound llm service starts unavailable and becomes usable (0.5.0 regression)', async () => {
