@@ -973,6 +973,38 @@ await check('event board: three calendars merge into one chronological, filterab
   return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
+await check('event board: the two-day window is the desk view, not a planning view', async () => {
+  const zh = internals.makeT('zh')
+  const merge = internals.mergeEventRows
+  const payload = {
+    today: '2026-11-09',
+    bySymbol: {
+      MSFT: { date: '2026-11-09', session: 'unknown', epsForecast: null },
+      NVDA: { date: '2026-11-12', session: 'post', epsForecast: 1.2 },
+    },
+    macro: [
+      { kind: 'fomc', date: '2026-11-09', time: '14:00', ref: 'FOMC', days: 0 },
+      { kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 1 },
+    ],
+    closures: [{ name: 'Thanksgiving Day', nameZh: '感恩节', date: '2026-11-26', close: '13:00' }],
+    expiries: [{ date: '2026-11-20' }],
+  }
+  const desk = merge(payload, { days: 2 })
+  assert(desk.rows.map((row) => row.date).join(',') === '2026-11-09,2026-11-09,2026-11-10', `only today and tomorrow, got ${desk.rows.map((row) => row.date).join(',')}`)
+  assert(desk.counts.total === 3, `the count follows the window, got ${JSON.stringify(desk.counts)}`)
+  // A value that is not one of the three offers must widen, never narrow to
+  // nothing: an old stored '5' would otherwise blank the whole board.
+  const stored = merge(payload, { days: 5 })
+  assert(stored.rows.length === 6, `an unknown window falls back to 30 days, got ${stored.rows.length}`)
+  const week = merge(payload, { days: 7 })
+  assert(week.rows.length === 4, `the week window keeps four rows, got ${week.rows.length}`)
+  assert(zh('Today and tomorrow') === '今明两天', 'the desk chip is named for the desk')
+  assert(zh('{n} in the next two days', { n: 3 }) === '今明两天共 3 件', 'the meta line follows the window')
+  const source = String(internals.EventBoard)
+  assert(source.includes('[2, 7, 30]'), 'all three windows are offered')
+  assert(source.includes("t('Today and tomorrow')"), 'the narrow one is not labelled "2d window"')
+})
+
 await check('event board: the held switch drops the reports the reader does not own', async () => {
   const merge = internals.mergeEventRows;
   const zh = internals.makeT('zh');
