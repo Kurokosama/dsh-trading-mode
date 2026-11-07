@@ -3489,6 +3489,87 @@ await check('home: the jump chips point at cards that exist, and the scroll is g
   return 'three targets, guarded scroll, labels localised';
 });
 
+await check('event board: a print whose published time has gone by stops being a warning', async () => {
+  const merge = internals.mergeEventRows
+  const en = internals.makeT('en')
+  const zh = internals.makeT('zh')
+  // The board is told which day it is reading and, from this round, which moment
+  // too: the clock is an argument so the assertion does not depend on when the
+  // suite happens to run.
+  const today = '2026-11-10'
+  const clock = new Date('2026-11-10T19:00:00Z') // 14:00 Eastern: the morning print is out, the statement is not
+  const board = merge(
+    {
+      today,
+      macro: [
+        { kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 0 },
+        { kind: 'fomc', date: '2026-11-10', time: '14:00', ref: 'FOMC statement', days: 0 },
+        { kind: 'jobs', date: '2026-11-13', time: '08:30', ref: 'Employment Situation', days: 3 },
+      ],
+      bySymbol: { NVDA: { date: '2026-11-10', session: 'post' } },
+      closures: [{ date: '2026-11-10', close: '13:00', name: 'Test half day', nameZh: '半天测试' }],
+      expiries: [],
+    },
+    { days: 30, scope: 'all', now: clock },
+  )
+  const byKey = new Map(board.rows.map((row) => [row.key, row]))
+  const cpi = byKey.get('macro:cpi:2026-11-10')
+  const fomc = byKey.get('macro:fomc:2026-11-10')
+  const halfDay = byKey.get('closure:2026-11-10')
+  const report = byKey.get('earnings:NVDA:2026-11-10')
+  const jobs = byKey.get('macro:jobs:2026-11-13')
+
+  assert(cpi && cpi.passed === true, 'a 08:30 ET print is finished by 14:00 ET')
+  assert(fomc && fomc.passed === false, 'a 14:00 ET statement is not finished at 14:00 ET')
+  assert(halfDay && halfDay.passed === true, 'a 13:00 ET early close has passed')
+  assert(report && report.passed === false, 'a report with no announced hour is not called finished')
+  assert(jobs && jobs.passed === false, 'a print on a later day is still ahead')
+  assert(fomc.sameDay >= 1, 'the collision note still spans finished and unfinished rows on one day')
+
+  // The word on the row is the claim the reader acts on.
+  assert(internals.eventWhenOf(cpi, en) === 'already out', `the row must say the print is out, got ${internals.eventWhenOf(cpi, en)}`)
+  assert(internals.eventWhenOf(cpi, zh) === '已公布', 'and in Chinese')
+  assert(internals.eventWhenOf(halfDay, en) === 'already closed', 'a closure uses the matching word')
+  assert(internals.eventWhenOf(halfDay, zh) === '已收盘', 'closed is not the same word as published')
+  assert(internals.eventWhenOf(fomc, en) === 'today', 'an unfinished row keeps today')
+  assert(internals.eventWhenOf(jobs, en) === 'in 3 days', 'a later row keeps its distance')
+  assert(internals.eventImpactOf(cpi, en).includes('Already released'), 'the consequence line follows the same fact')
+  assert(internals.eventImpactOf(cpi, zh).includes('已经公布'), 'the Chinese line too')
+  assert(internals.eventImpactOf(halfDay, en).includes('nothing more fills today'), 'a finished session says so')
+  assert(internals.eventImpactOf(fomc, en).includes('widest move window'), 'an upcoming decision keeps its warning')
+
+  // A reminder is for what is still ahead; pinging after the fact is noise.
+  assert(internals.eventReminderOf([cpi, halfDay], en, 'en') === null, 'a finished day sends no reminder')
+  const stillAhead = internals.eventReminderOf([fomc], en, 'en')
+  assert(stillAhead && stillAhead.items.length === 1, 'the statement that has not landed still pings')
+
+  // The detail page gates its own two warnings on the same clock.
+  const dayAfter = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  const dayBefore = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  assert(internals.macroWatchNote([{ kind: 'cpi', date: dayBefore, time: '08:30', days: 0 }], en) === null, 'a print that already landed is not a note')
+  const note = internals.macroWatchNote([{ kind: 'cpi', date: dayAfter, time: '08:30', days: 1 }], en)
+  assert(note && note.when === 'tomorrow', 'a print tomorrow is still a note')
+  assert(internals.nextMacro({ events: [{ kind: 'cpi', date: dayBefore, time: '08:30', ref: 'CPI', days: 0 }] }, en) === null, 'the detail strip does not advertise a finished print')
+  assert(internals.nextMacro({ events: [{ kind: 'cpi', date: dayAfter, time: '08:30', ref: 'CPI', days: 1 }] }, en) !== null, 'it still renders a print that is ahead')
+
+  // The banner points at the first event that has not happened; the finished row
+  // stays in the list, visibly calm.
+  const boardSource = String(internals.EventBoard)
+  assert(boardSource.includes('rows.find((row) => !row.passed)'), 'the next-up line skips finished rows')
+  assert(boardSource.includes("tm-ev__row--past'"), 'the row carries the finished state')
+  assert(boardSource.includes("!row.passed ? ' tm-ev__when--soon'"), 'and loses the urgent colour')
+  assert(/\.tm-ev__row--past \{[^}]*dashed/.test(internals.CSS), 'the stylesheet draws it calm')
+
+  // Refactoring the shared stamp must not move an instant by an hour.
+  assert(internals.etToDate('2026-11-10', '08:30').toISOString() === '2026-11-10T13:30:00.000Z', 'standard time is UTC-5')
+  assert(internals.etToDate('2026-06-10', '08:30').toISOString() === '2026-06-10T12:30:00.000Z', 'daylight time is UTC-4')
+  assert(internals.etToUtcStamp('2026-11-10', '08:30').start === '20261110T133000Z', 'the exported calendar is unchanged')
+  assert(internals.etToDate('nope', '08:30') === null, 'malformed input poses no instant')
+  assert(internals.eventPassedOf(null) === false, 'no row is never finished')
+  assert(internals.eventPassedOf({ date: '2026-11-10' }) === false, 'a row with no clock is never called finished')
+  return 'finished rows are named as finished in both languages; reminder and banner skip them; the shared stamp is unchanged'
+})
+
 await check('holdings news: the feed asks about the biggest positions first', async () => {
   const rows = [
     { symbol: 'AAPL', market: 'US', quote: { price: 100 } },
