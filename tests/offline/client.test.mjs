@@ -1206,6 +1206,10 @@ await check('news: headlines are dated, linked, and localised', () => {
   for (const cls of ['.tm-news {', '.tm-news__row {', '.tm-news__title {', '.tm-news__meta {']) {
     assert(CSS.includes(cls), `the card needs ${cls}`)
   }
+  // Narrow screens wrap the byline under the headline; it stays right-aligned there and a
+  // long headline is clamped to two lines so rows keep an even height.
+  assert(CSS.includes('.tm-news__meta { width: 100%; justify-content: flex-end; margin-top: 2px; }'), 'the wrapped byline is right-aligned')
+  assert(CSS.includes('.tm-news__title { display: -webkit-box; -webkit-line-clamp: 2;'), 'a long headline stops at two lines')
   const zh = internals.makeT('zh')
   assert(zh('In the news') === '相关新闻', 'the card title is localised')
   assert(zh('{n} headlines').replace('{n}', '3') === '3 条新闻', 'the count line is localised')
