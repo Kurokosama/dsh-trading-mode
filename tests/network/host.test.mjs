@@ -671,7 +671,7 @@ await check('index directory: aliases, dialects and provider capability', async 
   );
   assert.equal(
     DEFAULT_INDEX_SYMBOLS.length,
-    6,
+    7,
     `7 US headline indices (got ${DEFAULT_INDEX_SYMBOLS.length})`,
   );
   const byMarket = INDEX_DIRECTORY.reduce((acc, item) => {
