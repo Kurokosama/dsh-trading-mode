@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **0.9.0** (see `package.json`; the changelog is the authoritative history).
+Current release: **0.9.1** (see `package.json`; the changelog is the authoritative history).
 
 This project is a research tool for one DSH installation. It is deliberately not a trading
 system, and the roadmap below is deliberately conservative: the honest constraint on progress
@@ -13,7 +13,7 @@ is upstream data availability, not UI work.
 > is `yahoo → stooq`, and the index directory is seven US indices. Fork-only capability — the
 > unified event board, pre/post-market prices, local alerts and holdings, analyst consensus,
 > ETF exposures, SEC fundamentals, NYSE closures and OpEx — is documented in
-> [`CHANGELOG.md`](../CHANGELOG.md) under the `0.9.0` section and the `未发布` section that
+> [`CHANGELOG.md`](../CHANGELOG.md) under the `0.9.1` section that
 > follows it.
 
 - **Five markets** quoted side by side: US, Hong Kong, mainland China (A-shares), Japan and
@@ -78,9 +78,9 @@ is upstream data availability, not UI work.
   shipped file (printing tarball sha256 and size), and `npm run inspect:profile`, a read-only
   check of what each DSH profile has installed and whether it is a junction or a copy.
 
-## Shipped after 0.9.0
+## Shipped in 0.9.1
 
-Everything below landed after the 0.9.0 cut and is listed here so the roadmap's "Next" section
+Everything below landed after the 0.9.0 cut and shipped as 0.9.1; it is listed here so the roadmap's "Next" section
 can stay reserved for work that is genuinely still open. Each line corresponds to a commit in
 `git log` and to a bullet in the `未发布` changelog section.
 
