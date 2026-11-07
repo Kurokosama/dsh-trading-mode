@@ -828,6 +828,20 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   assert(I.suggestStop(null, { atr14: 2 }) === null, 'no price, no suggestion')
 })
 
+await check('earnings surprises: quarters read as quarters, and the bars are scaled', () => {
+  const I = internals
+  assert(typeof I.quarterLabel === 'function', 'quarterLabel exported')
+  assert(I.quarterLabel('2026-09-30') === '2026 Q3', 'September belongs to Q3')
+  assert(I.quarterLabel('2026-01-15') === '2026 Q1', 'January belongs to Q1')
+  assert(I.quarterLabel('') === '—', 'a missing date is a dash, not NaN')
+  const css = I.CSS
+  assert(css.includes('.tm-eps__row') && css.includes('.tm-eps__bar'), 'surprise styles present')
+  const t = I.makeT('zh')
+  assert(t('Earnings surprises') === '财报惊喜', 'card title localised')
+  assert(t('vs') === '对', 'versus localised')
+  assert(t('estimate') === '预期' && t('actual') === '实际', 'the two numbers are labelled in Chinese')
+})
+
 await check('brief: the local cost basis adds its own lines, and only above a threshold', () => {
   const t = internals.makeT('zh');
   const rows = [

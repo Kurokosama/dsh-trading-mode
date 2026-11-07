@@ -215,3 +215,26 @@ test('schema: the news list drops what cannot be shown and keeps order', () => {
   assert.equal(makeNews(null).length, 0, 'an empty answer is an empty list')
   assert.equal(makeNews(Array.from({ length: 30 }, (_, i) => ({ title: `t${i}`, link: `https://example.test/${i}` }))).length, 12, 'the list is capped')
 })
+
+test('schema: reported quarters keep their surprise and drop rows nobody can read', () => {
+  const profile = makeProfile({
+    symbol: 'AAPL',
+    name: 'Apple Inc.',
+    earningsSurprises: [
+      { quarter: '2026-03-31', actual: 2.01, estimate: 1.94, surprisePct: 3.46, currency: 'USD' },
+      { quarter: '2026-09-30', actual: 2.1, estimate: 1.9858, surprisePct: 5.75, currency: 'USD' },
+      // No date, no actual, or an absurd surprise: not something to show.
+      { quarter: '', actual: 1.1, estimate: 1.0, surprisePct: 10 },
+      { quarter: '2026-06-30', actual: null, estimate: 1.8, surprisePct: 4 },
+      { quarter: '2025-12-31', actual: 2.84, estimate: 2.67, surprisePct: 5000 },
+    ],
+  })
+  const rows = profile.earningsSurprises
+  assert.deepEqual(rows.map((row) => row.quarter), ['2026-09-30', '2026-03-31', '2025-12-31'], 'newest first, junk dates dropped')
+  assert.equal(rows[0].surprisePct, 5.75, 'a real surprise survives')
+  assert.equal(rows[2].surprisePct, null, 'an absurd surprise is dropped, the row stays')
+  assert.equal(profile.earningsSurprises.length, 3, 'two rows were unusable')
+
+  const empty = makeProfile({ symbol: 'VOO', name: 'Vanguard S&P 500 ETF' })
+  assert.equal(empty.earningsSurprises, undefined, 'no history, no key')
+})
