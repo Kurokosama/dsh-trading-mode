@@ -695,6 +695,18 @@ await check('panel: a zero-height slot says so instead of staying blank', async 
   return 'zero-slot notice covered';
 });
 
+await check('help: the same rows can leave as text a person can paste', async () => {
+  const t = internals.makeT('en');
+  const text = internals.diagnosticsText(t);
+  assert(typeof text === 'string' && text.length > 0, 'text is not empty');
+  assert(text.includes('Storage:'), `storage row, got: ${text}`);
+  assert(text.split('\n').length >= 3, 'three rows at least');
+  assert(String(internals.TradingApp).includes('diagnosticsText(t)'), 'the help dialog offers the copy');
+  assert(internals.CSS.includes('.tm-help__copy'), 'the button has its own style');
+  assert(internals.ZH['Copy diagnostics'] === '复制诊断信息', 'localised');
+  return 'diagnostics text covered';
+});
+
 await check('help: the panel can report its own runtime state', async () => {
   const t = internals.makeT('en');
   const rows = internals.diagnostics(t);
