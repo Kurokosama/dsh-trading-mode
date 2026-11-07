@@ -13,7 +13,8 @@ is upstream data availability, not UI work.
 > is `yahoo → stooq`, and the index directory is seven US indices. Fork-only capability — the
 > unified event board, pre/post-market prices, local alerts and holdings, analyst consensus,
 > ETF exposures, SEC fundamentals, NYSE closures and OpEx — is documented in
-> [`CHANGELOG.md`](../CHANGELOG.md) under "US fork — 未发布".
+> [`CHANGELOG.md`](../CHANGELOG.md) under the `0.9.0` section and the `未发布` section that
+> follows it.
 
 - **Five markets** quoted side by side: US, Hong Kong, mainland China (A-shares), Japan and
   crypto (`MARKETS = ['US', 'HK', 'CN', 'JP', 'CRYPTO']`).
@@ -76,6 +77,33 @@ is upstream data availability, not UI work.
   a blocking `npm run smoke:artifact` that packs, unpacks, whitelists and `node --check`s every
   shipped file (printing tarball sha256 and size), and `npm run inspect:profile`, a read-only
   check of what each DSH profile has installed and whether it is a junction or a copy.
+
+## Shipped after 0.9.0
+
+Everything below landed after the 0.9.0 cut and is listed here so the roadmap's "Next" section
+can stay reserved for work that is genuinely still open. Each line corresponds to a commit in
+`git log` and to a bullet in the `未发布` changelog section.
+
+- **Event board** — the three calendars (watchlist earnings, US macro releases, NYSE closures
+  and OpEx) merged into one chronological board with type filters, 2/7/30-day windows, a
+  held-only switch, same-day collision tags, a one-screen page size and one plain impact
+  sentence per row; today/tomorrow also arrives as a desktop notification while the tab is
+  hidden, and every reminder leaves a line in the alert history.
+- **Stock page** — the day read against its sector ETF, twenty-session relative strength, the
+  macro print that lands today or tomorrow, the next earnings date and ex-dividend day in
+  arrival order, the reader's own cost basis drawn on the price scale, one sentence that reads
+  the indicator grid back, and a header badge when the page is already a position.
+- **Holdings** — open P&L, the day's money per row, weight in the book, annual dividend income
+  at cost, cost-basis account notes shown before any brief, a "by today" sort, a callout for
+  positions missing from the watchlist, and a CSV export carrying value, P&L and the day.
+- **Brief** — a rule-written edition when no model is configured, a "held" marker on action
+  ideas that land on a position, a 12-hour local cache that survives reloads (sector strip
+  included), and a cap that summarises a long book instead of stacking it.
+- **Search and overview** — Chinese names resolve to tickers (81 seeded rows), results mark
+  names already held, and the overview compares the watchlist and the held book to the S&P by
+  equal weight.
+- **Accessibility and export** — the chart carries an accessible name, the alert history
+  downloads as CSV, and the keyboard ring is defined once for every reachable control.
 
 ## Known limitations
 
