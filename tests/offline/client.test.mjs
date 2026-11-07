@@ -500,6 +500,20 @@ await check('brief: the last edition survives a reload, but not a language switc
     assert(keptSectors && keptSectors[0].symbol === 'XLK', 'the sector strip comes back with the text');
     assert(internals.readBriefSectors('zh') === null, 'another language has no sector strip either');
     assert(internals.readBriefSectors(null) === null, 'no language, no sectors');
+    // A brief is true against one session's prices; a day later it is not a
+    // convenience, it is a stale claim.
+    const fresh = store.get('tm-brief-last');
+    const parsedFresh = JSON.parse(fresh);
+    parsedFresh.at = Date.now() - 13 * 60 * 60 * 1000;
+    store.set('tm-brief-last', JSON.stringify(parsedFresh));
+    assert(internals.readBriefCache('en') === null, 'a brief from the previous session is not served');
+    assert(internals.readBriefSectors('en') === null, 'and its sector strip goes with it');
+    const old = JSON.parse(fresh);
+    delete old.at;
+    store.set('tm-brief-last', JSON.stringify(old));
+    assert(internals.readBriefCache('en') === null, 'a payload without a timestamp is not trusted');
+    store.set('tm-brief-last', fresh);
+    assert(internals.readBriefCache('en').headline === brief.headline, 'a fresh one still reads back');
     const back = internals.readBriefCache('en');
     assert(back && back.headline === brief.headline, 'the same language reads it back');
     assert(internals.readBriefCache('zh') === null, 'another language starts empty');
