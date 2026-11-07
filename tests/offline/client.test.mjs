@@ -1142,6 +1142,29 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('positions: the total remembers what it was worth, one point a day', () => {
+  const { recordHistory, historyChange } = internals;
+  const day = Date.UTC(2026, 10, 6, 12);
+  let map = recordHistory({}, 'USD', 1000, day);
+  assert(map.USD.length === 1 && map.USD[0].value === 1000, 'the first point is recorded');
+  map = recordHistory(map, 'USD', 1010, day + 3600000);
+  assert(map.USD.length === 1 && map.USD[0].value === 1010, 'the same day is replaced, not appended');
+  map = recordHistory(map, 'USD', 1100, day + 86400000);
+  assert(map.USD.length === 2, 'a new day appends');
+  assert(map.USD[0].value === 1010 && map.USD[1].value === 1100, 'points stay in order');
+  assert(recordHistory(map, 'USD', 0, day).USD.length === 2, 'a zero balance is not a point');
+  assert(recordHistory(map, 'USD', 'nope', day).USD.length === 2, 'garbage is not a point');
+  const both = recordHistory(map, 'CAD', 500, day + 86400000);
+  assert(both.USD.length === 2 && both.CAD.length === 1, 'currencies are kept apart');
+  const trend = historyChange(both.USD, 30);
+  assert(trend && trend.change === 90 && Math.round(trend.pct) === 9, 'the change is measured across the window');
+  assert(historyChange([{ at: day, value: 1000 }], 30) === null, 'one point is not a trend');
+  assert(historyChange(null, 30) === null, 'no series, no trend');
+  assert(internals.CSS.includes('.tm-portfolio__trend'), 'the trend has its own style');
+  assert(internals.makeT('zh')('{n}d', { n: 30 }) === '30 天', 'the window label is localised');
+  return 'history recorded per day';
+});
+
 await check('news: a watchlist without positions still gets its feed', () => {
   const zhT = internals.makeT('zh');
   assert(zhT('Headlines on your watchlist') === '自选新闻', 'the fallback title is localised');
