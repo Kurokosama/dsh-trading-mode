@@ -612,6 +612,21 @@ await check('event board: three calendars merge into one chronological, filterab
   assert(internals.eventTitleOf(all.rows.find((row) => row.date === '2026-11-10'), zh, 'zh') === '美国 CPI', 'the macro title localises');
   assert(internals.CSS.includes('.tm-ev__chip--earnings') && internals.CSS.includes('.tm-ev__impact'), 'the board rows ship their CSS');
   assert(/[\u4e00-\u9fff]/.test(internals.ZH['What is coming up'] || ''), 'the board title localises');
+  // A reminder is the board speaking up while nobody is looking: today and
+  // tomorrow only, never the far rows, and the copy has to survive n = 1.
+  const rem = internals.eventReminderOf(all.rows, en, 'en');
+  assert(rem && rem.title === '2 events today', `today's count drives the title, got ${rem && rem.title}`);
+  assert(/^MSFT today/.test(rem.body) && /FOMC decision today/.test(rem.body), `the body names what fires, got ${rem && rem.body}`);
+  const tomorrowOnly = internals.eventReminderOf(all.rows.filter((row) => row.days === 1), en, 'en');
+  assert(tomorrowOnly.title === 'Market event tomorrow', `a lone reminder is not "1 events", got ${tomorrowOnly.title}`);
+  assert(tomorrowOnly.body === 'US CPI tomorrow', `the body keeps the relative day, got ${tomorrowOnly.body}`);
+  assert(internals.eventReminderOf(all.rows.filter((row) => row.days > 1), en, 'en') === null, 'a quiet day sends nothing');
+  assert(internals.ZH['Market event today'] === '今天有一件市场事件' && internals.ZH['{n} events tomorrow'] === '明天有 {n} 件事件', 'the reminder copy localises');
+  assert(String(internals.EventBoard).includes('useEventReminder'), 'the board arms the reminder on every render of the merged rows');
+  assert(String(internals.useEventReminder).includes('document.hidden') && String(internals.useEventReminder).includes('permission'), 'the reminder speaks only while the tab is hidden and only when the browser allows it');
+  assert(String(internals.useEventReminder).includes('tm-ev-reminded'), 'the same reminder is not repeated the same day');
+  assert(String(internals.EventBoard).includes('also arrive as a desktop alert'), 'the board says where the reminder comes from');
+  assert(/[\u4e00-\u9fff]/.test(internals.ZH['Today and tomorrow also arrive as a desktop alert while this tab is hidden.'] || ''), 'the reminder note localises');
   return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
