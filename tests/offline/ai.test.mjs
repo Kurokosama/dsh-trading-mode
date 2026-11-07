@@ -480,6 +480,40 @@ async function main() {
     return 'earnings-soon idea rides the brief input and outranks the technical ladder';
   });
 
+  await check('1.1: a drop into the print reads as re-pricing, not as a dip to buy', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 180, changePct: -5.42 } },
+        { symbol: 'AAPL', quote: { price: 270, changePct: -1.2 } },
+      ],
+      earnings: {
+        today: '2026-11-06',
+        bySymbol: { NVDA: { date: '2026-11-09', session: 'am' }, AAPL: { date: '2026-11-09', session: 'am' } },
+      },
+    });
+    assert.equal(realised.stocks[0].changePct, -5.42, 'the day move rides the brief input');
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(
+      en.some((line) => /NVDA/.test(line) && /5\.4% lower/.test(line) && /re-pricing/.test(line)),
+      'a hard drop into the print gets its own line',
+    );
+    assert.ok(!en.some((line) => /NVDA reports earnings/.test(line)), 'and it replaces the plain print line');
+    assert.ok(
+      en.some((line) => /AAPL reports earnings/.test(line)),
+      'a quiet name into the same print keeps the original wording',
+    );
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(zh.some((line) => /NVDA/.test(line) && /跌 5\.4%/.test(line) && /重新定价/.test(line)), 'zh phrasing localises');
+    const mild = derivedSuggestions(
+      { stocks: [{ symbol: 'MSFT', price: 300, changePct: -2.4, earningsInDays: 2 }] },
+      'en',
+    );
+    assert.ok(mild.some((line) => /MSFT reports earnings/.test(line)), 'below the threshold the plain line stays');
+    const noMove = derivedSuggestions({ stocks: [{ symbol: 'VTI', price: 400, earningsInDays: 2 }] }, 'en');
+    assert.ok(noMove.some((line) => /VTI reports earnings/.test(line)), 'a missing day change never fabricates a drop');
+    return 'dip-into-print idea replaces the plain print line above the threshold';
+  });
+
   await check('0.5.x: a market-wide macro print inside 7 days frames the whole brief', () => {
     const realised = buildBriefInput({
       stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
