@@ -352,6 +352,31 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('chart: the cost basis is drawn on the price scale, not guessed', async () => {
+  const geo = internals.buildGeometry;
+  const bars = [
+    { timestamp: '2026-11-01T00:00:00Z', open: 100, high: 120, low: 98, close: 110, volume: 1000 },
+    { timestamp: '2026-11-02T00:00:00Z', open: 110, high: 200, low: 105, close: 190, volume: 2000 },
+  ];
+  const withLine = geo(bars, null, 1000, 340, [{ key: 'cost', price: 150, label: 'Cost' }]);
+  assert(withLine.levels.length === 1, 'one mark inside the range is one level');
+  const level = withLine.levels[0];
+  assert(level.y > 10 && level.y < 250, `level sits inside the price plot, got ${level.y}`);
+  const top = geo(bars, null, 1000, 340, [{ key: 'cost', price: 200 }]).levels[0];
+  const bottom = geo(bars, null, 1000, 340, [{ key: 'cost', price: 98 }]).levels[0];
+  assert(top.y < bottom.y, 'a higher cost is drawn above a lower one');
+  assert(geo(bars, null, 1000, 340, [{ key: 'cost', price: 400 }]).levels.length === 0, 'above the high is not drawn');
+  assert(geo(bars, null, 1000, 340, [{ key: 'cost', price: 50 }]).levels.length === 0, 'below the low is not drawn');
+  assert(geo(bars, null, 1000, 340, [{ key: 'cost', price: null }]).levels.length === 0, 'a missing price draws nothing');
+  assert(geo(bars, null, 1000, 340, []).levels.length === 0, 'no marks, no levels');
+  assert(geo(bars, null, 1000, 340).levels.length === 0, 'an omitted list is still no levels');
+  assert(internals.CSS.includes('.tm-chart__level'), 'the level needs its own style hook');
+  assert(internals.CSS.includes('.tm-chart__level-tag'), 'the label needs its own style hook');
+  assert(internals.ZH['Your cost'] === '成本价', 'the label is localised');
+  assert(String(internals.CandleChart).includes('tm-chart__level'), 'the chart must draw the level');
+  return 'cost level ok';
+});
+
 await check('chart: the indicator grid also reads as one sentence', async () => {
   const digest = internals.technicalDigest;
   const t = internals.makeT('en');
