@@ -352,6 +352,29 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('notes: the ticker inside a sentence is a link, and only a real ticker', async () => {
+  const parts = internals.noteParts;
+  const line = 'NVDA is 42% of your USD positions; at that weight its drawdown is your drawdown.';
+  const split = parts(line, ['NVDA', 'AAPL']);
+  assert(split[0] && split[0].symbol === 'NVDA', 'the leading ticker is its own part');
+  assert(split.slice(1).map((part) => part.text || '').join('').startsWith(' is 42%'), 'the prose after it is preserved');
+  assert(split.slice(1).map((part) => part.text || '').join('') === line.slice(4), 'nothing is dropped');
+  const two = parts('AAPL and NVDA both moved', ['NVDA', 'AAPL']);
+  assert(two.filter((part) => part.symbol).map((part) => part.symbol).join(',') === 'AAPL,NVDA', 'every known ticker is picked up, in order');
+  const glued = parts('NVDAX is not NVDA', ['NVDA']);
+  assert(glued.filter((part) => part.symbol).length === 1, 'a longer word is not a ticker hit');
+  assert(parts(line, []).length === 1 && parts(line, [])[0].text === line, 'no known symbols leaves the line intact');
+  assert(parts('', ['NVDA']).length === 0 && parts(null, ['NVDA']).length === 0, 'empty input, empty parts');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const html = renderToStaticMarkup(
+    React.createElement(internals.AccountNotesCard, { notes: [line], symbols: ['NVDA'], onOpen: () => {} }),
+  );
+  assert(html.includes('tm-notes__sym'), 'the card renders the ticker as a control');
+  assert(internals.CSS.includes('.tm-notes__sym'), 'and styles it');
+  return 'note parts ok';
+});
+
 await check('home: the cost-basis warnings are visible before a brief is written', async () => {
   const { renderToStaticMarkup } = await import('react-dom/server');
   const React = (await import('react')).default;
