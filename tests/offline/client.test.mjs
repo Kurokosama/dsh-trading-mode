@@ -1218,6 +1218,21 @@ await check('alerts: a desktop notification fits the same facts into one line', 
   assert(/\d/.test(zhText.body), 'the body keeps its numbers in Chinese too')
 })
 
+await check('watchlist: a tag group folds away and remembers that it did', () => {
+  const zh = internals.makeT('zh');
+  const CSS = internals.CSS;
+  assert(zh('Hide these rows') === '\u6536\u8d77\u8fd9\u4e00\u7ec4', 'the fold is localised');
+  assert(zh('Show these rows') === '\u5c55\u5f00\u8fd9\u4e00\u7ec4', 'so is the unfold');
+  assert(CSS.includes('.tm-list__groupbtn'), 'the bucket header is a button');
+  assert(CSS.includes('.tm-list__chev'), 'and shows which way it is set');
+  assert(internals.toggleInList([], 'core').join() === 'core', 'adds the first label');
+  assert(internals.toggleInList(['core', 'watch'], 'core').join() === 'watch', 'removes only that label');
+  assert(internals.toggleInList(null, 'x').join() === 'x', 'a missing list is not fatal');
+  assert(internals.toggleInList(['a', 'b'], 'c').sort().join() === 'a,b,c', 'leaves the rest alone');
+  assert(source.includes("'tm-groups-collapsed'"), 'the choice survives a reload');
+  assert(source.includes('collapsed.includes(groupLabelOf(item))'), 'a folded bucket stays out of the keyboard walk');
+});
+
 await check('watchlist: the arrow keys walk the list and stop at neither end', () => {
   assert(typeof internals.nextNavIndex === 'function', 'nextNavIndex is exported')
   // Nothing highlighted yet: the first press lands where the reader expects.
