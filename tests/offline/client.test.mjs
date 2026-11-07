@@ -1397,6 +1397,32 @@ await check('indices: the Market Overview strip renders on the home view', async
   return 'overview card present';
 });
 
+await check('index detail: an index opens its own page, unit and all, with the fund one click away', async () => {
+  const { makeT } = internals;
+  const zh = makeT('zh');
+  // The catalogue call is filtered to the one symbol, so the page learns both
+  // the localised name and the unit without pulling the whole strip.
+  assert(source.includes("apiGet(`/indices?symbols=${encodeURIComponent(symbol)}`"), 'detail must ask the catalogue for this symbol only');
+  assert(source.includes('indexMeta.data.items'), 'the catalogue answers { items }, not a bare array');
+  assert(source.includes('plain(data.price, 2) + unit'), 'a yield prints with its unit, never as a dollar price');
+  assert(source.includes("t('ETF {symbol}', { symbol: proxyFund })"), 'the tracking fund rides in the header actions');
+  assert(source.includes("onOpen({ symbol: proxyFund, market: 'US' })"), 'that button opens the fund itself');
+  // Tiles are no longer proxies: VIX has no fund and is still worth reading.
+  assert(!source.includes('disabled: !proxied'), 'no index tile may be click-inert any more');
+  assert(source.includes('const detail = Object.assign({}, item, { market: item.market || market })'), 'a tile opens its own symbol');
+  assert(zh('ETF {symbol}', { symbol: 'TLT' }) === 'TLT（基金）', `ETF label, got ${zh('ETF {symbol}', { symbol: 'TLT' })}`);
+  assert(zh('Index levels are not tradable; open the closest ETF').includes('ETF'), 'the fund tooltip must localise');
+  assert(zh('Open {name}; its closest fund is {symbol}', { name: '10 年期美债收益率', symbol: 'TLT' }).includes('TLT'), 'tile tooltip names the fund');
+  // The copied page must say 4.86%, not $4.86.
+  const { digestLines } = internals;
+  const copied = digestLines({ symbol: '^TNX', name: '10-Year Treasury Yield', price: 4.86, change: 0.02, changePct: 0.41, unit: '%' }, zh);
+  assert(copied[1].startsWith('4.86%'), `index digest price, got ${copied[1]}`);
+  assert(!copied[1].includes('$'), 'an index level must not copy with a dollar sign');
+  const stock = digestLines({ symbol: 'AAPL', name: 'Apple', price: 210.5, currency: 'USD' }, zh);
+  assert(stock[1].startsWith('$210.50'), `stock digest price, got ${stock[1]}`);
+  return 'index page + unit + fund action ok';
+});
+
 await check('source links: stock and index pages, always in a new tab', async () => {
   const { SOURCE_LINKS, SourcesRow, digitsOf, tradingViewSymbol } = internals;
   const ids = (links) => links.map((l) => l.id).join(',');
