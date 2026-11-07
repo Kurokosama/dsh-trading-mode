@@ -1895,6 +1895,27 @@ await check('brief: an action idea says whether it lands on a position you hold'
   assert(String(internals.CSS).includes('.tm-brief__hold'), 'the marker is styled');
 });
 
+await check('brief: an empty action list says waiting is the plan, not silence', async () => {
+  const html = renderToString(h(internals.BriefCard, {
+    brief: { headline: 'Quiet tape', stocksTracked: 3, upCount: 1, downCount: 2,
+      strongestMover: 'NVDA +1.2% 100.00', suggestions: [] },
+    sectors: [],
+    positions: [],
+    held: new Set(),
+    aiAvailable: true,
+  }));
+  assert(html.includes('No condition for an action today'), 'the quiet line replaces an empty list');
+  assert(html.includes('tm-brief__quiet'), 'the line carries its own hook');
+  assert(html.includes('Action ideas'), 'the quiet line still lives under the same block title');
+  const zh = internals.makeT('zh');
+  assert(
+    zh('No condition for an action today — doing nothing is the plan.') === '今天没有触发任何行动条件——按兵不动就是今天的方案。',
+    'the waiting line localises',
+  );
+  assert(String(internals.CSS).includes('.tm-brief__quiet'), 'the quiet line is styled');
+  assert(String(internals.BriefCard).includes('tm-brief__quiet'), 'the element is wired in the component');
+});
+
 await check('brief: the positions ride into the analyze POST', async () => {
   const rows = [
     { symbol: 'NVDA', market: 'US', quote: { price: 100, changePct: 1.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
