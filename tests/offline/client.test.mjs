@@ -1161,6 +1161,13 @@ await check('positions: the total remembers what it was worth, one point a day',
   assert(historyChange([{ at: day, value: 1000 }], 30) === null, 'one point is not a trend');
   assert(historyChange(null, 30) === null, 'no series, no trend');
   assert(internals.CSS.includes('.tm-portfolio__trend'), 'the trend has its own style');
+  const line = internals.historyPoints(both.USD, 56, 14, 30);
+  assert(line && line.count === 2 && line.up === true, 'a rising series draws a line');
+  assert(line.points.split(' ').length === 2, 'one vertex per point');
+  assert(/^[\d.,\s]+$/.test(line.points), 'the vertices stay numeric');
+  const flat = internals.historyPoints([{ at: day, value: 900 }, { at: day + 86400000, value: 900 }], 56, 14, 30);
+  assert(flat && flat.points.split(' ').every((pair) => pair.endsWith(',7')), 'a flat series runs down the middle');
+  assert(internals.historyPoints([{ at: day, value: 900 }], 56, 14, 30) === null, 'one point cannot draw a line');
   assert(internals.makeT('zh')('{n}d', { n: 30 }) === '30 天', 'the window label is localised');
   return 'history recorded per day';
 });
