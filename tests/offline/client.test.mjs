@@ -587,6 +587,9 @@ await check('event board: three calendars merge into one chronological, filterab
   }
   assert(zh('+{n} same day', { n: 1 }) === '同日另有 1 件', 'the collision tag reads as a count in Chinese')
   assert(internals.CSS.includes('.tm-ev__same'), 'the collision tag ships its CSS')
+  // The nearest event is the one a reader acts on, so it must behave like its row.
+  assert(internals.CSS.includes('.tm-ev__next--link'), 'the next-up strip can be a link')
+  assert(String(internals.EventBoard).includes("tm-ev__next--link") && String(internals.EventBoard).includes("next.type === 'earnings'"), 'the next-up strip links only for a name with a detail page')
   const week = merge(payload, { days: 7 });
   assert(week.rows.length === 4 && week.counts.earnings === 2, `the 7-day chip drops everything past the week, got ${week.rows.length}`);
   const onlyEarnings = merge(payload, { days: 30, type: 'earnings' });
