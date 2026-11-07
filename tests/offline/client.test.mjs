@@ -624,6 +624,47 @@ await check('price alerts: bounds are per market, and only a real price fires th
   return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
 });
 
+await check('alerts: the history keeps what fired, newest first, without repeating itself', async () => {
+  const zh = internals.makeT('zh');
+  const CSS = internals.CSS;
+  assert(typeof internals.appendAlerts === 'function', 'appendAlerts is exported');
+  assert(typeof internals.alertLogReason === 'function', 'alertLogReason is exported');
+  assert(CSS.includes('.tm-alog__row'), 'history rows need their own style');
+  assert(CSS.includes('.tm-alog__foot'), 'the history footer needs its own style');
+  assert(zh('Alert history') === '提醒记录', 'the card title is localised');
+  assert(zh('Clear history') === '清空记录', 'the clear action is localised');
+
+  const base = { at: 1000 };
+  let list = internals.appendAlerts([], [{ key: 'US:AAPL', symbol: 'AAPL', hit: 'above', level: 320 }], 1000);
+  assert(list.length === 1 && list[0].key === 'US:AAPL', 'a first hit is recorded');
+  assert(list[0].at === 1000, 'the entry carries the time it happened');
+
+  // A repeat seconds later is the same event, not a second one.
+  list = internals.appendAlerts(list, [{ key: 'US:AAPL', symbol: 'AAPL', hit: 'above', level: 320 }], 1200);
+  assert(list.length === 1, 'a repeat inside the gap is folded away');
+
+  // A different alert on the same symbol is its own event.
+  list = internals.appendAlerts(list, [{ key: 'US:AAPL', symbol: 'AAPL', hit: 'loss', pct: -12.5 }], 1300);
+  assert(list.length === 2 && list[0].hit === 'loss', 'a different hit is its own entry, newest first');
+
+  // After the gap the same hit is news again.
+  list = internals.appendAlerts(list, [{ key: 'US:AAPL', symbol: 'AAPL', hit: 'above', level: 321 }], 1000 + 6 * 60 * 1000);
+  assert(list.length === 3 && list[0].hit === 'above', 'the same hit counts again once the gap passed');
+
+  // The list is capped so storage cannot grow without bound.
+  let big = [];
+  for (let i = 0; i < 40; i += 1) {
+    big = internals.appendAlerts(big, [{ key: `US:S${i}`, symbol: `S${i}`, hit: 'above', level: 10 }], 5000 + i * 60 * 60 * 1000);
+  }
+  assert(big.length === 30, 'the history is capped at thirty entries, got ' + big.length);
+
+  const reason = (entry) => internals.alertLogReason(entry, zh);
+  assert(reason({ hit: 'above', level: 320, currency: 'USD' }) === '高于 $320.00', 'a price alert reads as a level, got ' + reason({ hit: 'above', level: 320, currency: 'USD' }));
+  assert(reason({ hit: 'loss', pct: -12.5 }).includes('−12.50%'), 'a drawdown keeps its percent');
+  assert(reason({ hit: 'up', pct: 3.1 }).includes('+3.10%'), 'a session move keeps its percent');
+  assert(reason(null) === '', 'no entry renders nothing');
+});
+
 await check('price alerts: the watched price is the latest print, extended hours included', async () => {
   assert(internals.CSS.includes('.tm-alerts__sess'), 'the banner labels which session an extended print came from');
   const print = internals.latestPrint;
