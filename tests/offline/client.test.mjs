@@ -647,6 +647,25 @@ await check('positions: a cost basis turns a row into value and open P&L', async
   return 'basis drafts normalise, markets stay separate, value and P&L agree';
 });
 
+await check('positions: the list sorts by open P&L, and a row that is no position sinks', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('By P&L') === '按浮盈', 'the sort chip is labelled in Chinese');
+  assert(/[\u4e00-\u9fff]/.test(zh('Sort by open P&L (click again to reverse, a third click restores your order)')), 'its tooltip localises');
+  // The chip appears with the card, so it has to be reachable from the source.
+  assert(internals.pnlPercent !== undefined, 'the P&L sorter is exposed for the list');
+  const winner = internals.pnlPercent({ price: 200 }, { price: 100, shares: 1 });
+  const loser = internals.pnlPercent({ price: 50 }, { price: 100, shares: 1 });
+  assert(winner === 100 && loser === -50, `the figure is a percentage of the basis, got ${winner} / ${loser}`);
+  // A row without a position reports nothing, so the sort can push it down
+  // instead of ranking it as a flat 0% between a winner and a loser.
+  assert(internals.pnlPercent({ price: 200 }, null) === null, 'no basis means no sortable P&L');
+  assert(internals.pnlPercent({ price: null }, { price: 100, shares: 1 }) === null, 'and no quote means the same');
+  // Zero shares would divide by a zero basis: refuse the number rather than
+  // report NaN.
+  assert(internals.pnlPercent({ price: 200 }, { price: 0, shares: 1 }) === null, 'a zero basis is not a percentage');
+  return 'open P&L sorts per row and unheld rows sink rather than rank as flat';
+});
+
 await check('session chip: NYSE holidays and early closes override the weekday clock', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-session__note') && internals.CSS.includes('.tm-session--holiday'), 'the chip ships its note and holiday styles');
