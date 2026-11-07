@@ -155,6 +155,12 @@ function fakeService() {
         meta: { stale: false, limit: opts.limit || 6, market: opts.market || 'US' },
       };
     },
+    async getNewsFeed(symbols, opts = {}) {
+      return {
+        data: symbols.map((symbol) => ({ id: `f-${symbol}`, symbol, title: `${symbol} headline`, link: `https://example.test/${symbol}`, at: Date.now() })),
+        meta: { symbols, count: symbols.length, missing: [], limit: opts.limit || 8 },
+      };
+    },
     async getCandles(symbol) {
       return { data: { candles: [] }, meta: { stale: false } };
     },
@@ -393,6 +399,19 @@ await suite.check('1.1: GET /closures answers the NYSE calendar without touching
   const post = await call(api, { method: 'POST', url: '/api/trading/closures' });
   assert.equal(post.status, 400, 'the calendar is read-only');
   return `/closures: ${value.closures.length} rows, empty windows tolerated, writes refused`;
+});
+
+await suite.check('1.1: GET /news?symbols= answers the whole holdings feed at once', async () => {
+  const { api } = buildApi({ service: fakeService() });
+  const res = await call(api, { method: 'GET', url: '/api/trading/news?symbols=AAPL,NVDA&limit=3' });
+  assert.equal(res.status, 200, 'the feed route answers');
+  const value = res.payload.value;
+  assert(Array.isArray(value.data), 'the feed returns rows, not an envelope of envelopes');
+  assert.equal(value.data.length, 2, 'one row per symbol reaches the client');
+  assert.equal(value.data[0].symbol, 'AAPL', 'each row says which holding it belongs to');
+  assert.equal(value.meta.limit, 3, 'the limit reaches the service');
+  const empty = await call(api, { method: 'GET', url: '/api/trading/news?symbols=,,&limit=3' });
+  assert.equal(empty.status, 400, 'a blank symbol list is not a feed');
 });
 
 await suite.check('1.1: GET /news trims the headline list and refuses writes', async () => {

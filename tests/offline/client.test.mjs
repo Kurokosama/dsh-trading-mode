@@ -795,6 +795,14 @@ await check('brief: the local cost basis adds its own lines, and only above a th
   assert(t('Your positions (local)') === '你的持仓（本地）', 'the block is labelled in zh');
 });
 
+await check('news: the home card speaks for the holdings, not the whole market', () => {
+  const zh = internals.makeT('zh')
+  assert(internals.CSS.includes('.tm-news__sym'), 'the holding a headline belongs to gets its own column')
+  assert(zh('Headlines on your positions') === '持仓新闻', 'the card is labelled in Chinese')
+  assert(zh('{n} stories', { n: 3 }).includes('3'), 'the count localises')
+  return 'the holdings feed card is styled and localised'
+});
+
 await check('news: headlines are dated, linked, and localised', () => {
   const I = internals
   const CSS = I.CSS
