@@ -544,6 +544,27 @@ await check('detail page: dated events arrive in order and the calendar asks for
   return 'near ex-dividend ranks first, past dates stay out, the calendar request names one ticker';
 });
 
+await check('watchlist: the auto refresh toggle states what it will do next', async () => {
+  const zh = internals.makeT('zh')
+  const home = String(internals.HomeView)
+  const card = String(internals.WatchlistCard)
+
+  // One minute: short enough to notice a move, long enough not to hammer the
+  // provider. The number is exported so the test fails if it drifts silently.
+  assert(internals.AUTO_REFRESH_MS === 60000, 'the tick is one minute')
+  assert(home.includes('tm-auto-refresh'), 'the choice survives a reload')
+  assert(home.includes('document.hidden'), 'a hidden tab is skipped, not queued')
+  assert(home.includes('AUTO_REFRESH_MS'), 'the interval reads the exported constant')
+  assert(card.includes("aria-pressed"), 'the toggle reports its state to assistive tech')
+  assert(card.includes("t(autoRefresh ? 'Quotes reload every minute while this tab is visible'"), 'on says what the next minute brings')
+  assert(card.includes("'Quotes only reload when you ask'"), 'off says nothing moves without a click')
+  assert(card.includes('onToggleAutoRefresh'), 'without a handler the chip is not drawn at all')
+  assert(zh('Auto refresh') === '自动刷新', 'the chip has a Chinese label')
+  assert(zh('Quotes reload every minute while this tab is visible') === '面板在前台时每分钟自动刷新行情', 'and an honest on-state tooltip')
+  assert(zh('Quotes only reload when you ask') === '只在点刷新时更新行情', 'and an honest off-state tooltip')
+  assert(/\.tm-auto--on \{[^}]*--tm-brand/.test(internals.CSS), 'the on state is visible, not just in the title attribute')
+})
+
 await check('detail page: the day is read against its sector, not only against yesterday', async () => {
   const zh = internals.makeT('zh')
   const tile = internals.sectorTileOf
