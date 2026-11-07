@@ -1108,6 +1108,39 @@ await check('news: the home feed can be held to the last day, and it says when t
   assert(I.recentNews(null, now).length === 0 && I.recentNews([], now).length === 0, 'no feed means no rows')
 })
 
+await check('alerts: a desktop notification fits the same facts into one line', () => {
+  const t = internals.makeT('en')
+  assert(typeof internals.notificationText === 'function', 'notificationText is exported')
+  assert(internals.notificationText([], t) === null, 'nothing fired, nothing announced')
+  assert(internals.notificationText(null, t) === null, 'no list is not an announcement either')
+
+  const fired = [
+    { row: { symbol: 'NVDA' }, crossed: 'down', latest: { changePct: -5.4 }, armed: {}, position: null },
+    { row: { symbol: 'AAPL', quote: { currency: 'USD' } }, crossed: 'above', armed: { above: 320 }, latest: { price: 342 }, position: null },
+    { row: { symbol: 'TSLA' }, crossed: 'loss', armed: {}, latest: {}, position: { pct: -12.5 } },
+    { row: { symbol: 'VOO' }, crossed: 'below', armed: { below: 600 }, latest: { price: 590 }, position: null },
+    { row: { symbol: 'MSFT' }, crossed: 'up', latest: { changePct: 3.1 }, armed: {}, position: null },
+  ]
+  const message = internals.notificationText(fired, t)
+  // Three rows at most: a notification is glanced at, not read.
+  // `percent()` writes a real minus sign (U+2212) and two decimals; the test
+  // follows the product's own formatting rather than restating it.
+  assert(message.body.includes('\u22125.40%'), 'the move carries its number')
+  assert(message.body.includes('above $320.00'), 'a bound is spelled out, not called "crossed"')
+  assert(message.body.includes('\u221212.50%'), 'a drawdown from cost keeps its sign')
+  assert(message.body.endsWith('+2'), 'the overflow is counted rather than silently dropped')
+  assert(message.title === '5 alerts triggered', 'the title carries the total')
+
+  // A row with no usable figure still gets named instead of printing "undefined".
+  const bare = internals.notificationText([{ row: { symbol: 'ARKK' }, crossed: 'above', armed: {}, latest: null, position: null }], t)
+  assert(bare.body === 'ARKK', 'a row without a figure is still named')
+
+  const zh = internals.makeT('zh')
+  const zhText = internals.notificationText(fired, zh)
+  assert(zhText.title.includes('提醒'), 'the title localises')
+  assert(/\d/.test(zhText.body), 'the body keeps its numbers in Chinese too')
+})
+
 await check('watchlist: the arrow keys walk the list and stop at neither end', () => {
   assert(typeof internals.nextNavIndex === 'function', 'nextNavIndex is exported')
   // Nothing highlighted yet: the first press lands where the reader expects.
