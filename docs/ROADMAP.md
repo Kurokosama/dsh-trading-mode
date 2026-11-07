@@ -1,12 +1,19 @@
 # Roadmap
 
-Current release: **0.8.1** (see `package.json`; the changelog is the authoritative history).
+Current release: **0.8.2** (see `package.json`; the changelog is the authoritative history).
 
 This project is a research tool for one DSH installation. It is deliberately not a trading
 system, and the roadmap below is deliberately conservative: the honest constraint on progress
 is upstream data availability, not UI work.
 
 ## Shipped
+
+> The list below is the upstream baseline this fork started from (five markets, crypto
+> spotlight, HK/JP sources). The fork itself is US-only: `MARKETS` is `['US']`, the quote chain
+> is `yahoo → stooq`, and the index directory is seven US indices. Fork-only capability — the
+> unified event board, pre/post-market prices, local alerts and holdings, analyst consensus,
+> ETF exposures, SEC fundamentals, NYSE closures and OpEx — is documented in
+> [`CHANGELOG.md`](../CHANGELOG.md) under "US fork — 未发布".
 
 - **Five markets** quoted side by side: US, Hong Kong, mainland China (A-shares), Japan and
   crypto (`MARKETS = ['US', 'HK', 'CN', 'JP', 'CRYPTO']`).

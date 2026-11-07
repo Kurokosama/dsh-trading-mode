@@ -462,7 +462,7 @@ await check('session clock: the US phase follows the New York wall clock', async
 await check('macro card: the curated calendar maps to bilingual, bilingual labels and the localised windows', async () => {
   const zh = internals.makeT('zh');
   // Every kind the server table can send must resolve to a label entry.
-  assert(internals.MacroCard && String(internals.MacroCard).includes('/macro?days=30'), 'the card reads the curated /macro route');
+  assert(internals.EventBoard && String(internals.EventBoard).includes('/macro?days=30'), 'the board reads the curated /macro route');
   const kinds = internals.MACRO_KINDS || {};
   const labels = Object.values(kinds);
   assert(
@@ -531,25 +531,72 @@ await check('ex-dividend day: a UTC calendar date, never shifted into the previo
   return 'UTC date + label + countdown rules hold';
 });
 
-await check('exchange closures: half days are dated, and the card localises', async () => {
+await check('event board: closures and expiries keep their own wording', async () => {
   const zh = internals.makeT('zh');
-  const en = internals.makeT('en');
-  assert(internals.CSS.includes('.tm-events__row--holiday'), 'the closure rows ship their CSS');
-  assert(String(en('Exchange calendar')) === 'Exchange calendar', 'English keeps the canonical card title');
-  assert(zh('Exchange calendar') === '交易所日历', 'the card title localises');
-  // The same card carries the monthly expiry, so it is a calendar rather than a
-  // list of closures; the expiry rows read as volatility dates, not half days.
-  assert(internals.CSS.includes('.tm-events__row--opex'), 'the expiry rows ship their own CSS');
-  assert(zh('Monthly options expiry') === '期权到期日', 'the expiry label localises');
-  assert(zh('quarterly') === '季度合约', 'the quarterly marker localises');
-  assert(/[\u4e00-\u9fff]/.test(zh('Options expire at the close. Volume and index rebalancing usually cluster on that day.')), 'the expiry hint localises');
   assert(zh('Closed all day') === '全天休市', 'the full-day label localises');
   // The half-day wording carries the cutoff time, so it must interpolate rather
   // than print a bare "{close}".
   const half = zh('Early close {close} ET', { close: '13:00' });
   assert(half.includes('13:00') && !half.includes('{close}'), `half-day label interpolates (got ${half})`);
-  assert(/[\u4e00-\u9fff]/.test(zh('Half days close at 13:00 ET; orders after that wait for the next session.')), 'the hint localises');
-  return 'closure card CSS + full-day and half-day labels localise';
+  assert(zh('quarterly') === '季度合约', 'the quarterly marker localises');
+  assert(zh('Monthly options expiry') === '期权到期日', 'the expiry label localises');
+  assert(/[\u4e00-\u9fff]/.test(zh('Earnings move one name; macro prints move everything; a half day caps when you can trade.')), 'the board hint localises');
+  assert(internals.CSS.includes('.tm-ev__row--today'), 'a same-day event ships its highlight');
+  return 'closure/expiry labels and the same-day highlight hold';
+});
+
+await check('event board: three calendars merge into one chronological, filterable list', async () => {
+  const zh = internals.makeT('zh');
+  const en = internals.makeT('en');
+  const merge = internals.mergeEventRows;
+  assert(typeof merge === 'function', 'the board exposes its merge for tests');
+  const payload = {
+    today: '2026-11-09',
+    bySymbol: {
+      NVDA: { date: '2026-11-12', session: 'post', epsForecast: 1.2 },
+      AAPL: { date: '2026-12-19', session: 'pre', epsForecast: null },
+      MSFT: { date: '2026-11-09', session: 'unknown', epsForecast: null },
+    },
+    macro: [
+      { kind: 'fomc', date: '2026-11-09', time: '14:00', ref: 'FOMC', days: 0 },
+      { kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 1 },
+    ],
+    closures: [{ name: 'Thanksgiving Day', nameZh: '感恩节', date: '2026-11-26', close: '13:00' }],
+    expiries: [{ date: '2026-11-20' }],
+  };
+  const all = merge(payload, { days: 30 });
+  const dates = all.rows.map((row) => row.date).join(',');
+  assert(dates === '2026-11-09,2026-11-09,2026-11-10,2026-11-12,2026-11-20,2026-11-26', `chronological order, got ${dates}`);
+  // A same-day tie goes to the reader's own name: an earnings report moves one
+  // position, a print moves the whole book, and the single name is the more
+  // urgent of the two.
+  assert(all.rows[0].type === 'earnings' && all.rows[1].type === 'macro', 'a same-day earnings row sorts ahead of the macro print');
+  assert(!all.rows.some((row) => row.symbol === 'AAPL'), 'a date outside the window is dropped');
+  assert(all.counts.earnings === 2 && all.counts.macro === 2 && all.counts.exchange === 2, `counts by type, got ${JSON.stringify(all.counts)}`);
+  assert(all.counts.soon === 4 && all.counts.total === 6, `near-term count, got ${JSON.stringify(all.counts)}`);
+  const week = merge(payload, { days: 7 });
+  assert(week.rows.length === 4 && week.counts.earnings === 2, `the 7-day chip drops everything past the week, got ${week.rows.length}`);
+  const onlyEarnings = merge(payload, { days: 30, type: 'earnings' });
+  assert(onlyEarnings.rows.length === 2 && onlyEarnings.rows.every((row) => row.type === 'earnings'), 'the type filter keeps one voice');
+  const onlyExchange = merge(payload, { days: 30, type: 'exchange' });
+  assert(onlyExchange.rows.length === 2, 'exchange means closures and expiries together');
+  // A symbol query is always an earnings question; it must not be answered with
+  // an empty list because a type chip was left active.
+  const queried = merge(payload, { days: 30, type: 'macro', query: 'nvda' });
+  assert(queried.rows.length === 1 && queried.rows[0].symbol === 'NVDA', 'the symbol filter overrides the type chip');
+  // The impact line is the half a bare calendar leaves out.
+  const impact = (date) => internals.eventImpactOf(all.rows.find((row) => row.date === date), en);
+  assert(/after the close/.test(impact('2026-11-12')), `an after-close report says which open reprices it, got ${impact('2026-11-12')}`);
+  assert(/whole session/.test(impact('2026-11-09')), 'an unannounced report time flags the whole session');
+  assert(/Inflation/.test(impact('2026-11-10')), 'CPI says what it does to the book');
+  assert(/last hour/.test(internals.eventImpactOf(all.rows.find((row) => row.type === 'opex'), en)), 'the expiry row explains the volume cluster');
+  assert(/13:00/.test(internals.eventImpactOf(all.rows.find((row) => row.date === '2026-11-26'), en)), 'a half day carries its cutoff');
+  // Titles come from the reader's language, not from the payload's English.
+  assert(internals.eventTitleOf(all.rows.find((row) => row.date === '2026-11-26'), zh, 'zh') === '感恩节', 'the closure name localises');
+  assert(internals.eventTitleOf(all.rows.find((row) => row.date === '2026-11-10'), zh, 'zh') === '美国 CPI', 'the macro title localises');
+  assert(internals.CSS.includes('.tm-ev__chip--earnings') && internals.CSS.includes('.tm-ev__impact'), 'the board rows ship their CSS');
+  assert(/[\u4e00-\u9fff]/.test(internals.ZH['What is coming up'] || ''), 'the board title localises');
+  return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
 await check('extended hours: a pre or post print rides the row and the detail header', async () => {

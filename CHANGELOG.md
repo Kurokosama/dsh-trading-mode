@@ -307,6 +307,19 @@
 
 - **Crypto and non-US leftovers are gone from the engine.** The `CRYPTO_*` configuration, the crypto branch of `parseSymbol`/`currencyOf`, the HK/CN/JP seed lists in `SEED_WATCHLIST` / `RECOMMENDED_STARTERS`, and the "HKEX, SSE, SZSE, BSE, JPX and the top coins" copy in the universe browser were all still reachable from a build that only ships US feeds. They now reject with `UNSUPPORTED_MARKET` or are deleted outright.
 
+- **首页事件面板合并**：原来堆在首页的三张日历卡（事件提醒 / 美国宏观发布 / 交易所休市）合并成一张
+  「接下来有什么事」总表——同一条时间线上的财报、宏观数据、期权到期与休市混排，碰撞才看得见
+  （财报恰好排在 CPI 次日，与两者分开看是两种风险）。
+  - 顶部「下一个」条直接给最近一件事和它的影响，不用在长表里找；
+  - 类型 chips（全部 / 财报 / 宏观 / 交易所）带条数，配合「近 7 天 / 近 30 天」窗口；按代码过滤时
+    自动收窄到财报，避免一个代码筛出空表；
+  - 每行补一句人话影响：盘前公布则开盘重新定价、盘后公布则次日开盘、FOMC 是当月最大波动窗口、
+    提前收盘后委托要等下一交易日——日期本身不回答「所以呢」；
+  - 缩放到 7 天窗口只剩几天时，周分组（本周 / 下周 / 更晚）自动收成一段，不留下空标题；
+  - 三路数据各自请求、互不牵连：某一类失败只少那一类，整板不会清空。财报进入简报行动建议、
+    宏观/休市进入简报上下文的既有逻辑不变。
+  样式名由 `tm-events*` 改为 `tm-ev*`；旧的 `tm-events*` 规则与三张卡组件一并退役。
+
 ### 修复
 
 - **一只票写满整份简报**：逐只标的检查按「财报 → 盘外 → 均线 → 52 周 → 偏离 → 量比 → RSI」依次触发，
