@@ -480,6 +480,43 @@ async function main() {
     return 'earnings-soon idea rides the brief input and outranks the technical ladder';
   });
 
+  await check('0.5.x: a market-wide macro print inside 7 days frames the whole brief', () => {
+    const realised = buildBriefInput({
+      stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
+      macro: {
+        today: '2026-11-06',
+        events: [
+          { kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI' },
+          { kind: 'fomc', date: '2026-12-09', time: '14:00', ref: 'FOMC decision (SEP)' },
+          { kind: 'jobs', date: '2026-10-02', time: '08:30', ref: 'September jobs report' },
+        ],
+      },
+    });
+    assert.deepEqual(
+      realised.macroSoon,
+      [{ kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 4 }],
+      'only the print inside the 7-day window rides along; past and far rows drop out',
+    );
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(
+      en.some((line) => line.includes('October CPI') && line.includes('08:30 ET') && /in 4 days/.test(line)),
+      'the en idea names the print, its ET time and the day count',
+    );
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(
+      zh.some((line) => line.includes('October CPI') && line.includes('08:30 ET') && line.includes('4 天后')),
+      'the zh idea keeps the curated English ref but localises the framing',
+    );
+    const bare = derivedSuggestions(buildBriefInput({ stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }] }), 'en');
+    assert.ok(bare.every((line) => !/ET\)/.test(line)), 'no macro idea without the calendar in the input');
+    const stale = buildBriefInput({
+      stocks: [],
+      macro: { today: '2026-11-06', events: [{ kind: 'cpi', date: '2026-12-10', time: '08:30', ref: 'November CPI' }] },
+    });
+    assert.equal(stale.macroSoon, undefined, 'a print 30+ days out stays out of the model input');
+    return 'macroSoon rides the brief input and ranks beside the breadth idea';
+  });
+
   await check('buildBriefInput ages the whole brief by its oldest row', () => {
     const stocks = [
       { symbol: 'AAPL', quote: { timestamp: Date.now() }, stale: false },
