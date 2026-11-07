@@ -433,6 +433,26 @@ await check('notes: the ticker inside a sentence is a link, and only a real tick
   return 'note parts ok';
 });
 
+await check('alerts: the history can be downloaded as a spreadsheet', async () => {
+  const t = internals.makeT('en');
+  const entries = [
+    { key: 'US:NVDA', symbol: 'NVDA', hit: 'above', level: 180, pct: 2.4, at: 1762480000000 },
+    { key: 'US:event:2026-11-09:earnings:AAPL', symbol: 'AAPL', hit: 'event', type: 'earnings', when: 'today', at: 1762470000000 },
+  ];
+  const csv = internals.alertLogCsv(entries, t);
+  const lines = csv.split('\r\n');
+  assert(lines[0] === 'Time,Symbol,Kind,Detail,Key', `header first, got "${lines[0]}"`);
+  assert(lines.length === 3, `one line per entry, got ${lines.length}`);
+  assert(lines[1].startsWith('NVDA') || lines[1].includes(',NVDA,'), 'the symbol column is the ticker');
+  assert(lines[1].includes('above'), 'the kind is machine-readable');
+  assert(csv.includes('Earnings') && csv.includes('today'), 'the detail reads like the card row');
+  assert(internals.alertLogCsv(null, t).split('\r\n').length === 1, 'an empty history is still a header');
+  assert(String(internals.AlertLogCard).includes('Download CSV'), 'the card offers the download');
+  assert(String(internals.AlertLogCard).includes('alertLogCsv(entries, t)'), 'and builds it from the same list');
+  assert(internals.ZH['Download CSV'] === '下载 CSV', 'the button is localised');
+  return 'alert csv ok';
+});
+
 await check('home: the jump chip carries the week it is asking you to look at', async () => {
   const home = String(internals.HomeView);
   assert(home.includes('onCounts: setEventCounts'), 'the board reports its counts up to the page');
