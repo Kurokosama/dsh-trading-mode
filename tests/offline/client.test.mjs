@@ -1397,6 +1397,21 @@ await check('indices: the Market Overview strip renders on the home view', async
   return 'overview card present';
 });
 
+await check('detail news: the same 24-hour window the home card offers, on one symbol', async () => {
+  const { CSS, makeT } = internals;
+  const zh = makeT('zh');
+  assert(CSS.includes('.tm-news__chip--on'), 'the pressed chip needs its own look');
+  assert(CSS.includes('.tm-news__empty'), 'an empty window needs a line of its own');
+  assert(zh('No related news in the last 24 hours.') === '最近 24 小时没有相关新闻。', 'the empty line must localise');
+  assert(zh('Show only the last 24 hours').includes('24'), 'the tooltip says what the window is');
+  // The card filters through the same helper the home feed uses, and remembers
+  // the choice per browser rather than per symbol.
+  assert(source.includes('const newsRows = newsToday && Array.isArray(news.data) ? recentNews(news.data)'), 'the card must reuse recentNews');
+  assert(source.includes("window.localStorage.setItem('tm-news-today'"), 'the choice has to outlive the page');
+  assert(source.includes("'aria-pressed': newsToday ? 'true' : 'false'"), 'the chip is a toggle, so it says so');
+  return 'detail news window ok';
+});
+
 await check('index detail: an index opens its own page, unit and all, with the fund one click away', async () => {
   const { makeT } = internals;
   const zh = makeT('zh');
