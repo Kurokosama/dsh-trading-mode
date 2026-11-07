@@ -238,3 +238,38 @@ test('schema: reported quarters keep their surprise and drop rows nobody can rea
   const empty = makeProfile({ symbol: 'VOO', name: 'Vanguard S&P 500 ETF' })
   assert.equal(empty.earningsSurprises, undefined, 'no history, no key')
 })
+
+test('schema: the short book and the stakes behind a name land in percent', () => {
+  const profile = makeProfile({
+    symbol: 'AAPL',
+    name: 'Apple Inc.',
+    ownership: {
+      institutions: 0.66577,
+      insiders: 0.01655,
+      shortFloat: 0.0091,
+      shortShares: 131591865.4,
+      shortPriorShares: 128759000,
+      shortDays: 3.48,
+      shortAsOf: '2026-10-15',
+    },
+  })
+  const own = profile.ownership
+  assert.equal(own.institutions, 66.577, 'a fraction leaves as a percent')
+  assert.equal(own.insiders, 1.655, 'small stakes keep their decimals')
+  assert.equal(own.shortFloat, 0.91, 'short float is a percent too')
+  assert.equal(own.shortShares, 131591865, 'share counts are whole shares')
+  assert.equal(own.shortChangePct, 2.2, 'the change against the prior month is rounded to one decimal')
+  assert.equal(own.shortAsOf, '2026-10-15', 'the as-of date survives')
+
+  const partial = makeProfile({
+    symbol: 'MSFT',
+    name: 'Microsoft',
+    ownership: { institutions: 0.72, shortShares: 100, shortPriorShares: null, shortDays: 0, shortAsOf: 42 },
+  }).ownership
+  assert.equal(partial.shortChangePct, null, 'no prior month, no change')
+  assert.equal(partial.shortDays, null, 'a zero days-to-cover is not a reading')
+  assert.equal(partial.shortAsOf, null, 'a number is not a date')
+
+  const empty = makeProfile({ symbol: 'VOO', name: 'Vanguard S&P 500 ETF', ownership: {} })
+  assert.equal(empty.ownership, undefined, 'nothing usable means no block at all')
+})

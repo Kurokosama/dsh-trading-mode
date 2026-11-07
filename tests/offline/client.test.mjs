@@ -581,10 +581,22 @@ await check('analyst view: a consensus band, and every rating label localises', 
 await check('fundamentals: the growth and margin grid localises every row', async () => {
   const zh = internals.makeT('zh');
   assert(zh('Fundamentals') === '基本面', 'the card title localises');
-  const rows = ['Forward P/E', 'Price/Book', 'Beta', 'Revenue growth', 'Earnings growth', 'Gross margin', 'Net margin', 'Return on equity', 'Short float'];
+  const rows = ['Forward P/E', 'Price/Book', 'Beta', 'Revenue growth', 'Earnings growth', 'Gross margin', 'Net margin', 'Return on equity'];
   const missing = rows.filter((row) => /[\u4e00-\u9fff]/.test(zh(row)) === false);
   assert(missing.length === 0, `untranslated rows: ${missing.join(', ')}`);
-  return '9/9 fundamentals labels localise';
+  assert(!source.includes("plain(company.stats.shortFloat"), 'short interest moved out of the ratio grid');
+  return '8/8 fundamentals labels localise';
+});
+
+await check('ownership: the stakes and the short book get their own card', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('Ownership & shorts') === '持股与做空', 'the card title localises');
+  const rows = ['Institutions', 'Insiders', 'Short float', 'Days to cover', 'Shares short', 'vs prior month', 'Short interest as of'];
+  const missing = rows.filter((row) => /[\u4e00-\u9fff]/.test(zh(row)) === false);
+  assert(missing.length === 0, `untranslated rows: ${missing.join(', ')}`);
+  assert(source.includes('company.ownership') && source.includes('company.ownership.shortChangePct'), 'the card reads the ownership block');
+  assert(source.includes("volumeText(company.ownership.shortShares)"), 'share counts reuse the volume formatter');
+  return '6/6 ownership rows localise, short change reads the prior month';
 });
 
 await check('price alerts: bounds are per market, and only a real price fires them', async () => {

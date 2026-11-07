@@ -504,7 +504,19 @@ await check('company profile for AAPL (US-only build)', async () => {
         if (st.revenueGrowth != null) assert.ok(st.revenueGrowth > -100 && st.revenueGrowth < 300, `revenue growth in percent (got ${st.revenueGrowth})`);
         statsLabel = `fwdPE=${st.forwardPe} net=${st.netMargin}% rev=${st.revenueGrowth}%`;
       }
-      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'}) exDiv=${exDivLabel} analysts=${analystLabel} ${statsLabel}`);
+      // Stakes and the short book come from the same defaultKeyStatistics
+      // module; the percents must have been scaled off the raw fraction.
+      const own = out.data.ownership;
+      let ownLabel = 'none';
+      if (own) {
+        if (own.institutions != null) assert.ok(own.institutions >= 0 && own.institutions <= 100, `institutions in percent (got ${own.institutions})`);
+        if (own.insiders != null) assert.ok(own.insiders >= 0 && own.insiders <= 100, `insiders in percent (got ${own.insiders})`);
+        if (own.shortFloat != null) assert.ok(own.shortFloat >= 0 && own.shortFloat <= 100, `short float in percent (got ${own.shortFloat})`);
+        if (own.shortDays != null) assert.ok(own.shortDays > 0 && own.shortDays < 365, `days to cover sane (got ${own.shortDays})`);
+        if (own.shortShares != null) assert.ok(Number.isInteger(own.shortShares) && own.shortShares > 0, `short shares whole (got ${own.shortShares})`);
+        ownLabel = `inst=${own.institutions}% short=${own.shortFloat}% cover=${own.shortDays}d`;
+      }
+      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'}) exDiv=${exDivLabel} analysts=${analystLabel} ${statsLabel} ${ownLabel}`);
     } catch (err) {
       const gap = upstreamGap(err);
       if (!gap) throw err;
