@@ -927,6 +927,28 @@ await check('detail sparkline: the header trend squashes the last closes into a 
   assert(internals.sparkPoints(null) === null && internals.sparkPoints([]) === null, 'no candles means no line')
 })
 
+await check('brief: the local notes separate what the day did from what the entry did', () => {
+  const T = internals.makeT('en');
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, change: 4, changePct: 1.9, currency: 'USD' } },
+    { symbol: 'NVDA', market: 'US', quote: { price: 180, change: -1, changePct: -0.6, currency: 'USD' } },
+  ];
+  const costs = { 'US:AAPL': { price: 205, shares: 10 }, 'US:NVDA': { price: 176, shares: 5 } };
+  const notes = internals.positionNotes(rows, costs, T);
+  const day = notes.find((line) => line.includes('today'));
+  assert(Boolean(day), `a day line is written, got ${JSON.stringify(notes)}`);
+  assert(day.includes('2 of your positions'), `both are counted, got ${day}`);
+  assert(day.includes('+$35.00'), `the net day is summed, got ${day}`);
+  assert(day.includes('+1.2%'), `the day is a percentage of the prior close, got ${day}`);
+  // A flat day must not pretend to be a result.
+  const flat = internals.positionNotes(
+    rows.map((row) => Object.assign({}, row, { quote: Object.assign({}, row.quote, { change: 0, changePct: 0 }) })),
+    costs,
+    T,
+  );
+  assert(flat.every((line) => !line.includes('today')), 'a flat day says nothing');
+});
+
 await check('positions: the card total also carries what the session did', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-portfolio__today'), 'the session figure on the total line ships its style');
