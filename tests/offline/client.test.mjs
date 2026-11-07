@@ -838,6 +838,37 @@ await check('0.5.1 AI: an unavailable DeepSeek explains itself in both panels', 
   return 'reason surfaced in the brief and analysis panels (en + zh)';
 });
 
+await check('brief: a ring of editions can be paged, labelled as history', async () => {
+  const store = new Map();
+  const previous = globalThis.window.localStorage;
+  globalThis.window.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  try {
+    const first = { headline: 'Morning edition.', generatedAt: '2026-11-07T09:00:00Z', suggestions: [] };
+    const second = { headline: 'Afternoon edition.', generatedAt: '2026-11-07T15:00:00Z', suggestions: [] };
+    assert(internals.appendBriefHistory(first, 'en').length === 1, 'the first edition is kept');
+    assert(internals.appendBriefHistory(second, 'en').length === 2, 'a second edition joins the ring');
+    assert(internals.appendBriefHistory(second, 'en').length === 2, 'an identical edition is not duplicated');
+    const ring = internals.readBriefHistory('en');
+    assert(ring[0].brief.headline === 'Afternoon edition.', 'the ring is newest first');
+    assert(ring[1].at > 0, 'every edition carries its own moment');
+    assert(internals.readBriefHistory('zh').length === 0, 'another language reads an empty ring');
+    assert(internals.appendBriefHistory(null, 'en').length === 0, 'a missing brief writes nothing');
+    for (let i = 0; i < 20; i += 1) internals.appendBriefHistory({ headline: `Edition ${i}.` }, 'en');
+    assert(internals.readBriefHistory('en').length === 10, 'the ring never grows past ten');
+    assert(internals.ZH['An earlier edition of this brief'] === '查看上一份简报', 'the pager labels are translated');
+    assert(internals.ZH['An earlier edition: the numbers were read at their own time.'].length > 0, 'the older banner is translated');
+    assert(String(internals.BriefCard).includes("editions.pos > 0"), 'the banner answers to the pager position');
+    assert(String(internals.BriefCard).includes('tm-brief__pager'), 'the pager renders inside the brief card');
+    assert(String(internals.CSS).includes('.tm-brief__page'), 'the pager has its own styling');
+  } finally {
+    globalThis.window.localStorage = previous;
+  }
+});
+
 await check('brief: the last edition survives a reload, but not a language switch', async () => {
   const store = new Map();
   const previous = globalThis.window.localStorage;
