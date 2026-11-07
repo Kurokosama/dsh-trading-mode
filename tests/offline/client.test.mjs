@@ -1211,6 +1211,23 @@ await check('watchlist: the arrow keys walk the list and stop at neither end', (
     'the shortcut sheet says the arrows also walk the list')
 })
 
+await check('watchlist: a row with a print coming can be ordered by it', () => {
+  const zh = internals.makeT('zh');
+  assert(zh('By event') === '按事件', 'the chip is localised, got ' + zh('By event'));
+  assert(zh('Sort by the next earnings date (click again to reverse, a third click restores your order)').includes('财报'), 'the tooltip explains itself');
+  const earnings = {
+    today: '2026-11-06',
+    bySymbol: { AAPL: { date: '2026-11-12' }, NVDA: { date: '2026-11-09' } },
+  };
+  assert(internals.eventDaysOf({ symbol: 'NVDA' }, earnings) === 3, 'days are counted from the calendar day');
+  assert(internals.eventDaysOf({ symbol: 'nvda' }, earnings) === 3, 'the lookup ignores case');
+  assert(internals.eventDaysOf({ symbol: 'VOO' }, earnings) === null, 'a row outside the window has no rank');
+  assert(internals.eventDaysOf({ symbol: 'AAPL' }, null) === null, 'no calendar, no rank');
+  assert(internals.eventDaysOf(null, earnings) === null, 'no row, no rank');
+  // The date must not be read as a quote field: it lives on the calendar payload.
+  assert(internals.eventDaysOf({ symbol: 'AAPL', quote: { date: '2026-11-01' } }, earnings) === 6, 'the calendar wins over anything on the row');
+});
+
 await check('brief: the whole brief copies as ordered text, and empty sections stay out', () => {
   const t = internals.makeT('en');
   const full = internals.briefLines(
