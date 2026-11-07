@@ -707,6 +707,13 @@ await check('help: the same rows can leave as text a person can paste', async ()
   return 'diagnostics text covered';
 });
 
+await check('panel: a mounted page carries a pin outside the host layout', async () => {
+  assert(String(internals.TradingApp).includes("tm-pin"), 'the pin is rendered by the page itself');
+  assert(internals.CSS.includes('.tm-pin'), 'and styled');
+  assert(/\.tm-pin\s*\{[^}]*position:\s*fixed/.test(internals.CSS), 'fixed position escapes a clipped ancestor');
+  return 'pin covered';
+});
+
 await check('help: the panel can report its own runtime state', async () => {
   const t = internals.makeT('en');
   const rows = internals.diagnostics(t);
