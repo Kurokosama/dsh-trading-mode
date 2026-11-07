@@ -2475,6 +2475,31 @@ await check('home: the jump chips point at cards that exist, and the scroll is g
   return 'three targets, guarded scroll, labels localised';
 });
 
+await check('holdings news: the feed asks about the biggest positions first', async () => {
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 100 } },
+    { symbol: 'NVDA', market: 'US', quote: { price: 100 } },
+    { symbol: 'KO', market: 'US', quote: { price: 100 } },
+    { symbol: 'TSLA', market: 'US', quote: { price: 100 } },
+  ];
+  const costs = {
+    'US:AAPL': { price: 90, shares: 2 },
+    'US:NVDA': { price: 80, shares: 40 },
+    'US:KO': { price: 60, shares: 0 },
+  };
+  const picked = internals.newsSymbols(rows, costs);
+  // NVDA is the largest position, AAPL second. KO carries a cost but zero
+  // shares, which costOf() already refuses: a placeholder is not a holding.
+  assert(picked.join(',') === 'NVDA,AAPL', `order by value: ${picked.join(',')}`);
+  // A row with no recorded cost is not a holding and never asks for news.
+  assert(!picked.includes('TSLA'), 'unowned names stay out of the feed');
+  assert(internals.newsSymbols(rows, costs, 2).join(',') === 'NVDA,AAPL', 'the limit keeps the largest');
+  assert(internals.newsSymbols([], costs).length === 0, 'no rows, no feed');
+  assert(internals.newsSymbols(rows, null).length === 0, 'no costs, no feed');
+  assert(String(internals.HoldingNewsCard).includes('newsSymbols(rows, costs)'), 'the card uses the shared ranking');
+  return 'ranked by position value, unowned rows excluded';
+});
+
 console.log(`\n== summary ==\n  ${passed}/${passed + failed} checks passed, ${failed} failed`);
 report({ title: 'client', required: true, passed, failed, skipped: 0, skipReasons: [], failures: failures.slice(), ok: failed === 0 });
 if (failures.length) {
