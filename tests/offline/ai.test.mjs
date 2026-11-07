@@ -516,6 +516,23 @@ async function main() {
     return 'tags intent wired into the brief';
   });
 
+  await check('1.1: the brief input ships the sector board as read-only context', () => {
+    const input = buildBriefInput({
+      stocks: [],
+      earnings: null,
+      sectors: [
+        { symbol: 'XLK', en: 'Technology', zh: '科技', changePct: 1.104 },
+        { symbol: 'XLE', en: 'Energy', zh: '能源', changePct: 'nope' },
+        'junk',
+        null,
+      ],
+    });
+    assert.deepEqual(input.sectors, [{ symbol: 'XLK', en: 'Technology', zh: '科技', changePct: 1.1 }]);
+    assert.equal('sectors' in buildBriefInput({ stocks: [] }) && buildBriefInput({ stocks: [] }).sectors, undefined);
+    assert.match(BRIEF_STYLE_DIRECTIVE, /sectors: an optional read-only board backdrop/i);
+    return 'sector context passes through only with a numeric day change';
+  });
+
   console.log(`\n=== ${passed}/${passed + failures.length} checks passed, ${failures.length} failed ===`);
   report();
   if (failures.length) {
