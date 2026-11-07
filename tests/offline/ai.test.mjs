@@ -517,6 +517,57 @@ async function main() {
     return 'macroSoon rides the brief input and ranks beside the breadth idea';
   });
 
+  await check('1.1: a shortened trading week takes the board-wide slot in the brief', () => {
+    const realised = buildBriefInput({
+      stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
+      closures: {
+        today: '2026-11-06',
+        events: [
+          { date: '2026-11-26', name: 'Thanksgiving Day', nameZh: '感恩节', close: null },
+          { date: '2026-12-24', name: 'Christmas Day (observed)', nameZh: '圣诞节（观察日）', close: '13:00' },
+          { date: '2026-11-27', name: 'Day after Thanksgiving', nameZh: '感恩节次日', close: '13:00' },
+        ],
+      },
+    });
+    assert.equal(realised.closuresSoon, undefined, 'a closure 20 days out stays out of the model input');
+    const near = buildBriefInput({
+      stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
+      closures: {
+        today: '2026-11-22',
+        events: [
+          { date: '2026-11-26', name: 'Thanksgiving Day', nameZh: '感恩节', close: null },
+          { date: '2026-11-27', name: 'Day after Thanksgiving', nameZh: '感恩节次日', close: '13:00' },
+        ],
+      },
+    });
+    assert.deepEqual(
+      near.closuresSoon.map((row) => `${row.date}:${row.days}:${row.close || 'closed'}`),
+      ['2026-11-26:4:closed', '2026-11-27:5:13:00'],
+      'both a full holiday and a half day inside the window ride along',
+    );
+    const en = derivedSuggestions(near, 'en');
+    assert.ok(
+      en.some((line) => line.includes('Thanksgiving Day') && line.includes('11-26') && line.includes('in 4 days') && /shut all day/.test(line)),
+      'the en idea names the holiday and says nothing trades',
+    );
+    const zh = derivedSuggestions(near, 'zh');
+    assert.ok(
+      zh.some((line) => line.includes('感恩节') && line.includes('11-26') && line.includes('4 天后') && line.includes('全天休市')),
+      'the zh idea localises the holiday name and the consequence',
+    );
+    const half = derivedSuggestions(buildBriefInput({
+      stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
+      closures: { today: '2026-11-24', events: [{ date: '2026-11-27', name: 'Day after Thanksgiving', nameZh: '感恩节次日', close: '13:00' }] },
+    }), 'en');
+    assert.ok(
+      half.some((line) => line.includes('13:00 ET') && /before the cutoff/.test(line)),
+      'a half day is about the cutoff, not a shut market',
+    );
+    const quiet = derivedSuggestions(buildBriefInput({ stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }] }), 'en');
+    assert.ok(quiet.every((line) => !/NYSE|Exchange closure|休市/.test(line)), 'no closure idea without the calendar in the input');
+    return 'closuresSoon rides the brief input and outranks the macro line';
+  });
+
   await check('0.5.x: a tag cluster earns a concentration note, quoted as intent', () => {
     const realised = buildBriefInput({
       stocks: [
