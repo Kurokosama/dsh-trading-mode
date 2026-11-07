@@ -362,6 +362,30 @@ await suite.check('1.1: GET /quotes fans out per-symbol and isolates failures', 
   return `/quotes: ${asked.length} symbols fan-out, failure isolation + 3 guard rails`;
 });
 
+await suite.check('1.1: GET /closures answers the NYSE calendar without touching upstream', async () => {
+  const { api } = buildApi({ service: fakeService() });
+  const res = await call(api, { method: 'GET', url: '/api/trading/closures?from=2026-11-01&days=60' });
+  assert.equal(res.status, 200);
+  const value = res.payload.value;
+  assert.equal(value.verifiedOn, '2026-11-06', 'the table must publish the day it was checked');
+  assert.match(value.source, /nyse\.com/, 'the source is quoted so the claim is checkable');
+  assert.equal(value.earlyCloseTime, '13:00');
+  assert.deepEqual(
+    value.closures.map((row) => `${row.date}:${row.close || 'closed'}`),
+    ['2026-11-26:closed', '2026-11-27:13:00', '2026-12-24:13:00', '2026-12-25:closed'],
+    'the window answers the anchor rows in date order',
+  );
+  assert.equal(value.closures[0].days, 25, 'each row carries its day offset for the UI countdown');
+
+  const empty = await call(api, { method: 'GET', url: '/api/trading/closures?from=2026-11-28&days=3' });
+  assert.equal(empty.status, 200);
+  assert.deepEqual(empty.payload.value.closures, [], 'a quiet window is an empty list, not an error');
+
+  const post = await call(api, { method: 'POST', url: '/api/trading/closures' });
+  assert.equal(post.status, 400, 'the calendar is read-only');
+  return `/closures: ${value.closures.length} rows, empty windows tolerated, writes refused`;
+});
+
 await suite.check('two identities sharing one store never see each other', async () => {
   const store = memoryWatchlist();
   const first = buildApi({ watchlist: store, user: 'local-1' });

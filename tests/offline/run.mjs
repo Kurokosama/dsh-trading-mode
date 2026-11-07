@@ -39,6 +39,7 @@ const SUITES = [
   ['sec', 'sec.test.mjs'],
   ['calendar', 'calendar.test.mjs'],
   ['macro', 'macro.test.mjs'],
+  ['holidays', 'holidays.test.mjs'],
   ['schema', 'schema.test.mjs'],
   ['watchlist', 'watchlist.test.mjs'],
   ['ai', 'ai.test.mjs'],

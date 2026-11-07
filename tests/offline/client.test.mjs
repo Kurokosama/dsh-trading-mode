@@ -580,6 +580,32 @@ await check('price alerts: bounds are per market, and only a real price fires th
   return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
 });
 
+await check('session chip: NYSE holidays and early closes override the weekday clock', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-session__note') && internals.CSS.includes('.tm-session--holiday'), 'the chip ships its note and holiday styles');
+  assert(zh('early close {close} ET') === '提前收盘 {close} ET', 'the early-close note localises');
+  assert(/[\u4e00-\u9fff]/.test(zh('New York {time} · NYSE holiday: {name}')), 'the holiday tooltip localises');
+  const table = [
+    { date: '2026-11-26', name: 'Thanksgiving Day', nameZh: '感恩节', close: null },
+    { date: '2026-11-27', name: 'Day after Thanksgiving', nameZh: '感恩节次日', close: '13:00' },
+  ];
+  // 15:00Z is 10:00 EST: mid-session on any normal day.
+  const holiday = internals.usSessionInfo(new Date('2026-11-26T15:00:00Z'), table);
+  assert(holiday.phase === 'closed', `a full-day closure must never read as open, got ${holiday.phase}`);
+  assert(holiday.closure && holiday.closure.nameZh === '感恩节', 'the closure row rides along so the chip can name the holiday');
+  // The same morning one day later trades; the afternoon is the early close.
+  assert(internals.usSessionInfo(new Date('2026-11-27T15:00:00Z'), table).phase === 'open', 'the morning of a 13:00 close still trades');
+  const afternoon = internals.usSessionInfo(new Date('2026-11-27T18:30:00Z'), table);
+  assert(afternoon.phase === 'post' && afternoon.earlyClose === true, `13:30 EST on an early close is after-hours, got ${afternoon.phase}`);
+  // Without the table the old weekday-only answer stands: a slow or failed
+  // fetch must degrade to the previous chip, never invent a closure.
+  assert(internals.usSessionInfo(new Date('2026-11-26T15:00:00Z')).phase === 'open', 'no table means the weekday clock, no guess');
+  assert(internals.usSessionInfo(new Date('2026-11-26T15:00:00Z'), []).phase === 'open', 'an empty table behaves like no table');
+  // Weekends stay closed even on a day the table does not mention.
+  assert(internals.usSessionInfo(new Date('2026-11-28T15:00:00Z'), table).phase === 'closed', 'Saturday is closed regardless of the table');
+  return 'holiday closes the day, 13:00 ends the session early, no table falls back to weekdays';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
