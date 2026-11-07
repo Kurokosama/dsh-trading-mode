@@ -41,6 +41,7 @@ const SUITES = [
   ['macro', 'macro.test.mjs'],
   ['holidays', 'holidays.test.mjs'],
   ['news', 'news.test.mjs'],
+  ['indices', 'indices.test.mjs'],
   ['schema', 'schema.test.mjs'],
   ['watchlist', 'watchlist.test.mjs'],
   ['ai', 'ai.test.mjs'],

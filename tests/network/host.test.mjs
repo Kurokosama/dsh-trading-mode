@@ -815,8 +815,8 @@ await check('index directory: aliases, dialects and provider capability', async 
   );
   assert.equal(
     DEFAULT_INDEX_SYMBOLS.length,
-    7,
-    `7 US headline indices (got ${DEFAULT_INDEX_SYMBOLS.length})`,
+    9,
+    `9 US benchmarks — seven indices plus rates and the dollar (got ${DEFAULT_INDEX_SYMBOLS.length})`,
   );
   const byMarket = INDEX_DIRECTORY.reduce((acc, item) => {
     acc[item.group] = (acc[item.group] || 0) + 1;
@@ -824,7 +824,7 @@ await check('index directory: aliases, dialects and provider capability', async 
   }, {});
   assert.deepEqual(
     byMarket,
-    { US: 7 },
+    { US: 9 },
     `index tab split per market (got ${JSON.stringify(byMarket)})`,
   );
   assert.equal(lookupIndex('vix').symbol, '^VIX', 'vix → ^VIX');
@@ -841,7 +841,11 @@ await check('index directory: aliases, dialects and provider capability', async 
   assert.equal(searchIndices('纳指', undefined, 4)[0].symbol, '^IXIC', '纳指 → ^IXIC (Nasdaq Composite)');
   assert.equal(searchIndices('纳斯达克100', undefined, 4)[0].symbol, '^NDX', '纳斯达克100 → ^NDX');
   assert.equal(lookupIndex('^SPX').symbol, '^GSPC', '^SPX (caret-prefixed alias) → ^GSPC');
-  return '^VIX/^IXIC/^NDX/^RUT dialects ok';
+  assert.equal(lookupIndex('美债10年').symbol, '^TNX', '美债10年 → ^TNX (10-year yield)');
+  assert.equal(lookupIndex('DXY').symbol, 'DX-Y.NYB', 'DXY → DX-Y.NYB (dollar index)');
+  assert.equal(publicIndex(lookupIndex('^TNX')).unit, '%', 'a yield carries its unit so the tile is not read as a price');
+  assert.equal(publicIndex(lookupIndex('^GSPC')).unit, undefined, 'plain levels carry no unit');
+  return '^VIX/^IXIC/^NDX/^RUT/^TNX/DXY dialects ok';
 });
 
 await check('GET /indices returns one quote envelope per index', async () => {
