@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 
 import { ApiRoutes, redactDiagnostic } from '../../lib/trading/api.js';
+import { TradingError } from '../../lib/trading/errors.js';
 import { API_POLICY } from '../../lib/trading/config.js';
 import { createSuite, exitCodeFor } from './harness.mjs';
 
@@ -301,6 +302,38 @@ await suite.check('1.1: PATCH /watchlist/:symbol accepts a tags set (1.0.x)', as
   const dying = await call(api, { method: 'PATCH', url: '/api/trading/watchlist/AAPL', body: {} });
   assert.equal(dying.status, 400, 'neither field answers a clear bad request');
   return 'tags PATCH routes to setTags';
+});
+
+await suite.check('1.1: GET /quotes fans out per-symbol and isolates failures', async () => {
+  const service = fakeService();
+  const asked = [];
+  service.getQuote = async (symbol) => {
+    asked.push(symbol);
+    if (symbol === 'DEAD') throw new TradingError('DATA_UNAVAILABLE', `no market data is available for ${symbol}`);
+    return { data: { symbol, price: 100, changePct: 1.2 }, meta: { stale: false } };
+  };
+  const { api } = buildApi({ service });
+
+  const batch = await call(api, { method: 'GET', url: '/api/trading/quotes?symbols=XLK,dead,XLF' });
+  assert.equal(batch.status, 200);
+  assert.equal(batch.payload.value.length, 3, 'one entry per symbol, even when one fails');
+  assert.equal(batch.payload.value[0].symbol, 'XLK');
+  assert.equal(batch.payload.value[0].data.price, 100);
+  assert.equal(batch.payload.value[1].error.code, 'DATA_UNAVAILABLE', 'one dead tile is isolated');
+  assert.equal(batch.payload.value[1].data, null);
+  assert.equal(batch.payload.value[2].symbol, 'XLF');
+  assert.deepEqual(asked, ['XLK', 'DEAD', 'XLF'], 'each symbol is quoted on the server');
+
+  const empty = await call(api, { method: 'GET', url: '/api/trading/quotes' });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.payload.error.code, 'BAD_REQUEST');
+
+  const dupe = await call(api, { method: 'GET', url: '/api/trading/quotes?symbols=XLK,XLK' });
+  assert.equal(dupe.status, 400, 'duplicate symbols must be refused, not quoted twice');
+
+  const tooMany = await call(api, { method: 'GET', url: `/api/trading/quotes?symbols=${'A,'.repeat(13)}B` });
+  assert.equal(tooMany.status, 400);
+  return `/quotes: ${asked.length} symbols fan-out, failure isolation + 3 guard rails`;
 });
 
 await suite.check('two identities sharing one store never see each other', async () => {
