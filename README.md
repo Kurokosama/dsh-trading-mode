@@ -120,6 +120,8 @@ plugin_manager({ action: "remove_bundle", target: "dsh-trading-mode" })
 
 ## 开始使用
 
+K 线图带 aria-label（根数、起止日期、最新收盘），读屏软件能读出走势窗口。
+
 自选汇总下面还有一句「今天是谁干的」：按金额点名贡献最大与拖累最大的两只，省去逐行找原因。
 
 提醒记录可以下载成 CSV（时间/代码/类型/说明/key），与卡片里看到的是同一句话。

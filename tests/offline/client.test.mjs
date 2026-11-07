@@ -566,6 +566,22 @@ await check('search: a result says whether the name is already a position', asyn
   return 'held marker ok';
 });
 
+await check('chart: the drawn picture says what it is, out loud', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const candles = [
+    { timestamp: '2026-11-03T00:00:00Z', open: 100, high: 106, low: 99, close: 105, volume: 1000 },
+    { timestamp: '2026-11-04T00:00:00Z', open: 105, high: 110, low: 104, close: 108, volume: 1200 },
+  ];
+  const html = renderToStaticMarkup(React.createElement(internals.CandleChart, { candles, series: null }));
+  assert(html.includes('aria-label="2 bars'), `the chart names its size and window, got ${html.slice(0, 200)}`);
+  assert(html.includes('last close 108'), 'and where it closed');
+  assert(html.includes('role="img"'), 'still an image to the accessibility tree');
+  assert(internals.ZH['{n} bars, {from} to {to}; last close {close}'].includes('根 K 线'), 'the label is localised');
+  assert(String(internals.CandleChart).includes("'aria-label'"), 'the element carries it');
+  return 'chart label ok';
+});
+
 await check('chart: the cost basis is drawn on the price scale, not guessed', async () => {
   const geo = internals.buildGeometry;
   const bars = [
