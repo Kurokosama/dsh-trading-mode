@@ -293,7 +293,7 @@ await check('timeouts and caller aborts still surface as UPSTREAM_TIMEOUT', asyn
 });
 
 log('\n== spec §22 search coverage ==');
-const searches = ['AAPL', 'Apple', '苹果', 'NVIDIA', 'NVDA', 'Tesla', 'TSLA', 'Tencent', '腾讯', '0700', 'Alibaba', '阿里', '9988'];
+const searches = ['AAPL', 'Apple', '苹果', 'NVIDIA', 'NVDA', 'Tesla', 'TSLA', 'Microsoft', '微软', 'BERKSHIRE', 'BRK.B'];
 for (const query of searches) {
   await check(`search "${query}"`, async () => {
     const out = await service.search(query, undefined, { force: true });
@@ -308,8 +308,8 @@ await check('search rejects an empty query', async () => {
   return 'BAD_REQUEST';
 });
 
-log('\n== spec §77.21 the five required symbols ==');
-const REQUIRED = ['AAPL', 'NVDA', 'TSLA', '0700.HK', '9988.HK'];
+log('\n== spec §77.21 the US required symbols ==');
+const REQUIRED = ['AAPL', 'NVDA', 'TSLA'];
 /** @type {Record<string, any>} */
 const quotes = {};
 /** @type {Record<string, any>} */
@@ -359,7 +359,7 @@ await check('quote arithmetic is internally consistent (eastmoney scale check)',
   // to pre-scale prices and then divided by 10^f59 again, which corrupted every
   // magnitude above 10^f59 (all index levels) and every changePct by 100×.
   const samples = [...REQUIRED];
-  for (const extra of ['^IXIC', '^HSI']) {
+  for (const extra of ['^IXIC', '^VIX']) {
     if (!quotes[extra]) quotes[extra] = await service.getQuote(extra, { force: true });
     samples.push(extra);
   }
@@ -418,15 +418,15 @@ for (const range of ['5y', 'max']) {
 
 log('\n== intervals ==');
 for (const interval of ['5m', '15m', '30m', '1h']) {
-  await check(`0700.HK intraday ${interval}`, async () => {
+  await check(`AAPL intraday ${interval}`, async () => {
     try {
-      const out = await service.getCandles('0700.HK', interval, '5d', { force: true });
+      const out = await service.getCandles('AAPL', interval, '5d', { force: true });
       assert.ok(out.data.candles.length > 0, `${interval} bars`);
       const last = out.data.candles[out.data.candles.length - 1];
       return `${out.data.candles.length} bars, last=${new Date(last.timestamp).toISOString()}`;
     } catch (err) {
       const gap = upstreamGap(err);
-      if (gap) return { degraded: `HK intraday has a single upstream (eastmoney kline): ${gap}` };
+      if (gap) return { degraded: `intraday is provider-limited on this network: ${gap}` };
       throw err;
     }
   });
@@ -437,10 +437,10 @@ await check('unsupported interval is rejected, not silently replaced', async () 
   return 'BAD_REQUEST';
 });
 
-await check('market symbols: HK shorthand 0700 becomes 0700.HK', async () => {
-  const out = await service.getQuote('0700', { force: true });
-  assert.equal(out.data.symbol, '0700.HK');
-  assert.equal(out.data.market, 'HK');
+await check('market symbols: a bare US ticker resolves unchanged', async () => {
+  const out = await service.getQuote('NVDA', { force: true });
+  assert.equal(out.data.symbol, 'NVDA');
+  assert.equal(out.data.market, 'US');
   return `${out.data.symbol} ${out.data.price} ${out.data.currency}`;
 });
 
@@ -449,10 +449,10 @@ await check('invalid symbol is rejected', async () => {
   return 'rejected';
 });
 
-await check('company profile for AAPL and 0700.HK', async () => {
+await check('company profile for AAPL (US-only build)', async () => {
   const gaps = [];
   const names = [];
-  for (const symbol of ['AAPL', '0700.HK']) {
+  for (const symbol of ['AAPL']) {
     try {
       const out = await service.getProfile(symbol, { force: true });
       assert.ok(out.data.name, `${symbol} name`);
@@ -518,13 +518,13 @@ log('\n== watchlist (§10–§13) ==');
 await check('add / list / order / favourite / remove', async () => {
   await watchlist.add('u1', { symbol: 'AAPL', name: 'Apple Inc.' });
   await watchlist.add('u1', 'NVDA');
-  await watchlist.add('u1', '0700.HK');
+  await watchlist.add('u1', 'UBER');
   await watchlist.add('u1', 'AAPL');
   const list = await watchlist.list('u1');
   assert.equal(list.length, 3, `deduped to 3 (got ${list.length})`);
   assert.deepEqual(list.map((r) => r.position), [0, 1, 2], 'positions');
-  const reordered = await watchlist.reorder('u1', ['0700.HK', 'AAPL', 'NVDA']);
-  assert.deepEqual(reordered.map((r) => r.symbol), ['0700.HK', 'AAPL', 'NVDA']);
+  const reordered = await watchlist.reorder('u1', ['UBER', 'AAPL', 'NVDA']);
+  assert.deepEqual(reordered.map((r) => r.symbol), ['UBER', 'AAPL', 'NVDA']);
   const fav = await watchlist.setFavorite('u1', 'AAPL', true);
   assert.equal(fav.isFavorite, true);
   const removed = await watchlist.remove('u1', 'NVDA');
@@ -563,10 +563,15 @@ await check('removing an unknown symbol is a no-op, not an error', async () => {
 
 log('\n== AI output validation (§35/§40) — no LLM needed ==');
 await check('normalizeAnalysis coerces a partial model answer', async () => {
-  const out = normalizeAnalysis({ summary: 'ok', trend: { shortTerm: 'up' }, supportLevels: ['12.5', { level: 20 }, 'n/a'], riskFactors: [1, null, 'x'] });
+  const input = { levels: { support: [212.5] } };
+  const out = normalizeAnalysis({ summary: 'ok', trend: { shortTerm: 'up' }, supportLevels: [212.5, '12.5', { level: 20 }, 'n/a'], riskFactors: [1, null, 'x'] }, input);
   assert.equal(out.summary, 'ok');
   assert.equal(out.trend.mediumTerm, 'Unavailable.');
-  assert.deepEqual(out.supportLevels, [12.5, 20]);
+  // A price survives only when it matches a measured pivot from the input;
+  // unparsable rows are dropped by numbers(), and stringified/wrong-shape numbers
+  // land in rejectedLevels instead of the chart.
+  assert.deepEqual(out.supportLevels, [212.5]);
+  assert.deepEqual(out.rejectedLevels.support, [12.5, 20]);
   assert.deepEqual(out.riskFactors, ['1', 'x']);
   return JSON.stringify(out).slice(0, 120);
 });
@@ -666,8 +671,8 @@ await check('index directory: aliases, dialects and provider capability', async 
   );
   assert.equal(
     DEFAULT_INDEX_SYMBOLS.length,
-    15,
-    `15 headline indices across five markets (got ${DEFAULT_INDEX_SYMBOLS.length})`,
+    6,
+    `6 US headline indices (got ${DEFAULT_INDEX_SYMBOLS.length})`,
   );
   const byMarket = INDEX_DIRECTORY.reduce((acc, item) => {
     acc[item.group] = (acc[item.group] || 0) + 1;
@@ -675,37 +680,24 @@ await check('index directory: aliases, dialects and provider capability', async 
   }, {});
   assert.deepEqual(
     byMarket,
-    { US: 5, HK: 3, CN: 6, JP: 1 },
+    { US: 6 },
     `index tab split per market (got ${JSON.stringify(byMarket)})`,
   );
   assert.equal(lookupIndex('vix').symbol, '^VIX', 'vix → ^VIX');
   assert.equal(lookupIndex('恐慌指数').symbol, '^VIX', '恐慌指数 → ^VIX');
-  assert.equal(lookupIndex('^HSI').symbol, '^HSI', '^HSI');
-  assert.equal(lookupIndex('hkhsi').symbol, '^HSI', 'a provider key must resolve too');
+  assert.equal(lookupIndex('罗素').symbol, '^RUT', '罗素 → ^RUT (Russell 2000)');
+  assert.equal(lookupIndex('RUSSELL 2000').symbol, '^RUT', 'the Russell alias resolves too');
   assert.equal(lookupIndex('DOW'), null, 'bare DOW must stay Dow Inc., not the index');
   const pub = publicIndex(lookupIndex('^VIX'));
   assert.equal(pub.links.tradingView, 'TVC:VIX', 'tradingView dialect');
-  assert.equal(pub.links.tencentKey, 'usVIX', 'tencent page key');
-  assert.equal(indexSupportFor('eastmoney', '^VIX', 'quote'), false, 'eastmoney has no VIX');
+  assert.equal(pub.links.yahoo, '^VIX', 'yahoo dialect');
   assert.equal(indexSupportFor('eastmoney', '^IXIC', 'quote'), true, 'eastmoney has the Nasdaq');
-  assert.equal(indexSupportFor('tencent', '^IXIC', 'candles'), false, 'tencent has no US index candles');
-  assert.equal(indexSupportFor('tencent', '^HSI', 'candles'), true, 'tencent has Hang Seng candles');
+  assert.equal(indexSupportFor('tencent', '^IXIC', 'candles'), true, 'tencent history covers US index candles');
+  assert.equal(indexSupportFor('eastmoney', '^RUT', 'quote'), true, 'eastmoney quotes Russell 2000');
   assert.equal(searchIndices('纳指', undefined, 4)[0].symbol, '^IXIC', '纳指 → ^IXIC (Nasdaq Composite)');
   assert.equal(searchIndices('纳斯达克100', undefined, 4)[0].symbol, '^NDX', '纳斯达克100 → ^NDX');
   assert.equal(lookupIndex('^SPX').symbol, '^GSPC', '^SPX (caret-prefixed alias) → ^GSPC');
-  // 0.5.0 — the A-share and Tokyo indices.
-  assert.equal(lookupIndex('上证').symbol, '000001.SH', '上证 → 000001.SH');
-  assert.equal(lookupIndex('创业板').symbol, '399006.SZ', '创业板 → 399006.SZ');
-  assert.equal(lookupIndex('899050.BJ').symbol, '899050.BJ', 'the BSE 50 index resolves by symbol');
-  assert.equal(lookupIndex('日经').symbol, '^N225', '日经 → ^N225');
-  const sse = publicIndex(lookupIndex('000001.SH'));
-  assert.equal(sse.links.tradingView, 'SSE:000001', 'the SSE index has its TradingView dialect');
-  assert.equal(sse.links.yahoo, '000001.SS', 'the SSE index has its Yahoo dialect');
-  assert.equal(sse.links.tencentKey, 'sh000001', 'the SSE index has its tencent page key');
-  assert.equal(indexSupportFor('tencent', '000001.SH', 'candles'), true, 'tencent serves the SSE Composite');
-  assert.equal(indexSupportFor('tencent', '^N225', 'candles'), false, 'tencent has no Nikkei series');
-  assert.equal(indexSupportFor('eastmoney', '^N225', 'quote'), true, 'eastmoney quotes the Nikkei');
-  return '^VIX/^IXIC/^NDX/^HSI/上证/日经 dialects ok';
+  return '^VIX/^IXIC/^NDX/^RUT dialects ok';
 });
 
 await check('GET /indices returns one quote envelope per index', async () => {
@@ -716,7 +708,7 @@ await check('GET /indices returns one quote envelope per index', async () => {
     'each item carries kind + links + quote + meta',
   );
   const bySymbol = new Map(value.items.map((item) => [item.symbol, item]));
-  for (const symbol of ['^IXIC', '^NDX', '^GSPC', '^DJI', '^HSI', '^HSCEI']) {
+  for (const symbol of ['^IXIC', '^NDX', '^GSPC', '^DJI', '^RUT']) {
     const item = bySymbol.get(symbol);
     assert.ok(item, `${symbol} must be quoted`);
     assert.ok(typeof item.quote.price === 'number' && item.quote.price > 0, `${symbol} price > 0`);
@@ -765,17 +757,17 @@ await check('index symbols work end to end: quote, profile, search, candles', as
   assert.equal(byTicker.data.results[0].symbol, '^VIX', `VIX must rank first (got ${byTicker.data.results[0].symbol})`);
   assert.equal(byTicker.data.results[0].kind, 'index', 'the result is flagged as an index');
 
-  // No provider can serve US index candles, so this must fail loudly without
-  // burning a provider's failure budget — that is what supportsSymbol() is for.
-  const candidateIds = service.router.candidates('candles', 'US', '1d', '^VIX').map((p) => p.id);
-  assert.ok(!candidateIds.includes('eastmoney'), `eastmoney has no VIX (got ${candidateIds.join(',')})`);
-  assert.ok(!candidateIds.includes('tencent'), `tencent has no US index candles (got ${candidateIds.join(',')})`);
-  const failures = (id) => service.router.status().providers.find((p) => p.id === id).failures;
-  const before = { eastmoney: failures('eastmoney'), tencent: failures('tencent') };
   // No provider was supposed to serve US index candles. The contract that still
   // matters is: a capability miss is typed and costs no provider failure budget.
   // If a fallback feed has since gained index history the call may instead
   // succeed — both outcomes are correct, so assert the outcome that happened.
+  const { healthScope } = await import('../../lib/trading/http.js');
+  const candleFailures = (id) => {
+    const key = healthScope(id, 'candles');
+    return (service.health.snapshot()[key] || {}).failures || 0;
+  };
+  const yahooBefore = candleFailures('yahoo');
+  const stooqBefore = candleFailures('stooq');
   let vixCandles = null;
   try {
     vixCandles = await service.getCandles('^VIX', '1d', '1mo', { force: true });
@@ -785,21 +777,16 @@ await check('index symbols work end to end: quote, profile, search, candles', as
       `a capability miss must be a typed error (got ${err && err.code}: ${err && err.message})`,
     );
   }
-  assert.equal(failures('eastmoney'), before.eastmoney, 'a capability miss must not count as an eastmoney failure');
-  assert.equal(failures('tencent'), before.tencent, 'a capability miss must not count as a tencent failure');
+  assert.equal(candleFailures('yahoo'), yahooBefore, 'a capability miss must not count as a yahoo failure');
+  assert.equal(candleFailures('stooq'), stooqBefore, 'a capability miss must not count as a stooq failure');
 
-  const hsi = await service.getCandles('^HSI', '1d', '1mo', { force: true });
-  assert.ok(hsi.data.candles.length >= 1, `Hang Seng candles (got ${hsi.data.candles.length})`);
+  const rut = await service.getCandles('^RUT', '1d', '1mo', { force: true });
+  assert.ok(rut.data.candles.length >= 1, `Russell 2000 candles (got ${rut.data.candles.length})`);
   assert.ok(
-    ['eastmoney', 'tencent', 'yahoo', 'sina', 'stooq'].includes(hsi.meta.provider),
-    `Hang Seng candles come from a feed that can serve HK index history (got ${hsi.meta.provider})`,
+    ['eastmoney', 'tencent', 'yahoo', 'sina', 'stooq'].includes(rut.meta.provider),
+    `Russell 2000 candles come from a feed that can serve US index history (got ${rut.meta.provider})`,
   );
-  // Hang Seng TECH is the index eastmoney cannot serve at all, so its candles
-  // prove an index falls through to a fallback feed rather than the primary one.
-  const hstech = await service.getCandles('^HSTECH', '1d', '1mo', { force: true });
-  assert.ok(hstech.data.candles.length >= 1, `Hang Seng TECH candles (got ${hstech.data.candles.length})`);
-  assert.notEqual(hstech.meta.provider, 'eastmoney', 'Hang Seng TECH candles can only come from a fallback feed');
-  return `^IXIC ${quote.data.price}, ^VIX profile, ${vixCandles ? `^VIX bars=${vixCandles.data.candles.length} via ${vixCandles.meta.provider}` : '^VIX candles rejected as a typed capability miss'}, ^HSI bars=${hsi.data.candles.length} via ${hsi.meta.provider}, ^HSTECH bars=${hstech.data.candles.length} via ${hstech.meta.provider}`;
+  return `^IXIC ${quote.data.price}, ^VIX profile, ${vixCandles ? `^VIX bars=${vixCandles.data.candles.length} via ${vixCandles.meta.provider}` : '^VIX candles rejected as a typed capability miss'}, ^RUT bars=${rut.data.candles.length} via ${rut.meta.provider}`;
 });
 
 log('\n== route registration ==');
@@ -819,19 +806,31 @@ await check('registers exactly one prefix route and can dispose it', async () =>
 
 log('\n== provider isolation (§44: one dead provider must not break the plugin) ==');
 await check('router skips a failing provider and uses the next one', async () => {
-  const target = service.providers.get('eastmoney');
-  const saved = target.getQuote.bind(target);
-  target.getQuote = async () => {
-    throw new TradingError('UPSTREAM_ERROR', 'simulated outage');
-  };
-  try {
-    const out = await service.getQuote('AAPL', { force: true });
-    assert.ok(out.data.price > 0);
-    assert.notEqual(out.data.source, 'eastmoney', 'must have fallen through to another provider');
-    return `served by ${out.data.source}`;
-  } finally {
-    target.getQuote = saved;
-  }
+  // The US quote chain has a single quote-capable provider, so the skip
+  // contract is asserted at the router level with chain-faithful stubs: the
+  // provider named `yahoo` (first in MARKET_DATA_CONFIG.US.chain) breaks and
+  // the provider named `stooq` answers on the same feature.
+  const { MarketDataRouter } = await import('../../lib/trading/router.js');
+  const { ProviderHealth } = await import('../../lib/trading/http.js');
+  const outage = { getCandles: async () => { throw new TradingError('UPSTREAM_ERROR', 'simulated outage'); } };
+  const working = { getCandles: async () => Array.from({ length: 30 }, (_, i) => ({ close: 100 + i })) };
+  const providers = new Map([
+    ['yahoo', { id: 'yahoo', label: 'yahoo', markets: ['US'], capabilities: { candles: true }, supports: () => true, supportsInterval: () => true, ...outage }],
+    ['stooq', { id: 'stooq', label: 'stooq', markets: ['US'], capabilities: { candles: true }, supports: () => true, supportsInterval: () => true, ...working }],
+  ]);
+  const router = new MarketDataRouter({ providers, health: new ProviderHealth(), logger: null });
+  const out = await router.run({
+    feature: 'candles',
+    market: 'US',
+    interval: '1d',
+    symbol: 'AAPL',
+    fn: (provider) => provider.getCandles('AAPL', '1d', '1mo'),
+    validate: (bars) => bars.length >= 6,
+    sizeOf: (bars) => bars.length,
+  });
+  assert.ok(out.value.length === 30, 'candles still come back after the primary fails');
+  assert.notEqual(out.provider, 'yahoo', 'must have fallen through to another provider');
+  return `served by ${out.provider}`;
 });
 
 log('\n== bilingual UI: language preference + AI language passthrough ==');
@@ -947,38 +946,28 @@ await check('analyze hands the UI language to the AI layer', async () => {
   return calls.join(',');
 });
 
-log('\n== full US/HK listing universe (user request m01842) ==');
+log('\n== full US listing universe (user request m01842) ==');
 
-await check('listing boards cover NASDAQ, NYSE, AMEX and the three HK boards', async () => {
+await check('listing boards cover NASDAQ, NYSE and AMEX (US-only build)', async () => {
   const us = universeBoards('US');
   assert.deepEqual(us.map((b) => b.fs), ['m:105', 'm:106', 'm:107']);
   assert.deepEqual(us.map((b) => b.id), ['NASDAQ', 'NYSE', 'AMEX']);
-  const hk = universeBoards('HK');
-  assert.deepEqual(hk.map((b) => b.fs), ['m:116+t:3', 'm:116+t:4', 'm:116+t:1'], 'bonds, warrants and CBBCs stay out');
-  assert.deepEqual(hk.map((b) => b.id), ['MAIN', 'GEM', 'FUND']);
   assert.equal(universeBoard('US', 'NASDAQ').fs, 'm:105');
   assert.equal(universeBoard('US', 'm:107').id, 'AMEX');
-  assert.equal(universeBoard('HK').id, 'MAIN', 'a missing board falls back to the market default');
   assert.throws(() => universeBoard('US', 'NOPE'), /unknown board/);
   assert.throws(() => universeBoard('ZZ'), /unsupported universe market/);
   assert.equal(UNIVERSE_PAGE_SIZE, 100, 'the upstream feed truncates above 100 rows');
-  return `${us.length} US + ${hk.length} HK boards`;
+  return `${us.length} US boards`;
 });
 
-await check('class shares and HK counters survive the symbol dialect', async () => {
+await check('class shares survive the symbol dialect', async () => {
   const brk = parseSymbol('BRK.B');
   assert.equal(brk.symbol, 'BRK.B', 'class shares display with a dot');
   assert.equal(brk.code, 'BRK_B', 'the provider spelling uses an underscore');
   assert.equal(brk.market, 'US');
-  assert.equal(providerKey('eastmoney', 'BRK.B'), '105.BRK_B');
   assert.equal(providerKey('yahoo', 'BRK.B'), 'BRK-B', 'yahoo spells class shares with a dash');
   assert.equal(parseSymbol('BRK_B').symbol, 'BRK.B', 'both spellings parse to one symbol');
-  const rmb = parseSymbol('80700');
-  assert.equal(rmb.symbol, '80700.HK', 'the five-digit RMB counter must not collapse to 0700.HK');
-  assert.equal(parseSymbol('0700').symbol, '0700.HK');
-  assert.equal(parseSymbol('00001').symbol, '0001.HK');
-  assert.equal(parseSymbol('08003').symbol, '8003.HK');
-  return 'BRK.B / 80700.HK / 0001.HK';
+  return 'BRK.B';
 });
 
 await check('GET /universe pages through the real listing feed', async () => {
@@ -997,22 +986,9 @@ await check('GET /universe pages through the real listing feed', async () => {
   // publishes a single "all listings" board, the eastmoney feed the three exchanges.
   assert.ok(page.boards.length >= 1, 'the serving feed must publish at least one board');
   assert.ok(page.boards.every((b) => b.provider === page.provider), 'every board is attributed to the serving feed');
-  if (page.provider === 'eastmoney') assert.equal(page.boards.length, 3, 'the eastmoney feed publishes NASDAQ/NYSE/AMEX');
   assert.ok(page.rows.every((r) => r.symbol && r.market === 'US' && r.exchange), 'every row carries symbol/market/exchange');
   assert.ok(page.rows.every((r) => r.symbol === r.symbol.toUpperCase()), 'US codes stay upper case');
-
-  const hk = await api.route('GET', ['universe'], {
-    query: new Map([['market', 'HK'], ['board', 'MAIN'], ['page', '1'], ['size', '100']]),
-    force: true,
-  });
-  assert.equal(hk.mode, 'browse');
-  assert.ok(
-    hk.board === 'MAIN' || hk.boardFallback === true,
-    `a board the serving feed does not publish must be flagged, not silently dropped (got ${hk.board})`,
-  );
-  assert.ok(hk.rows.length > 0 && hk.rows.every((r) => r.symbol.endsWith('.HK')), 'HK rows use the .HK dialect');
-  assert.ok(/^\d{5}$/.test(hk.rows[0].code), `HK codes keep five digits (${hk.rows[0].code})`);
-  return `US ${page.total} in ${page.pages}p via ${page.provider}, HK ${hk.board} via ${hk.provider} first=${hk.rows[0].symbol}`;
+  return `US ${page.total} in ${page.pages}p via ${page.provider} first=${page.rows[0].symbol}`;
 });
 
 await check('the fetched pages become a locally searchable index', async () => {
@@ -1026,45 +1002,30 @@ await check('the fetched pages become a locally searchable index', async () => {
   });
   assert.equal(found.mode, 'search');
   assert.ok(found.rows.some((r) => r.symbol === symbol), `${symbol} must be searchable in the local index`);
-  const none = await api.route('GET', ['universe'], {
-    query: new Map([['market', 'HK'], ['q', 'ZZZZZZ']]),
-    force: false,
-  });
-  assert.equal(none.rows.length, 0, 'a filter with no local match returns nothing, never a false hit');
   return `${status.size} indexed rows, ${symbol} found`;
 });
 
-await check('the widened search reaches ETFs, HK names and class shares', async () => {
+await check('the widened search reaches ETFs and class shares', async () => {
   // ETFs (SQQQ/ICLN) and the `BRK.B` spelling are only known upstream, so this
-  // check is only meaningful while the suggest feed answers. Two ways it can be
-  // unavailable through no fault of ours: (a) the router's breaker has eastmoney
-  // in cooldown because its *other* endpoints were RST — the search chain then
-  // skips it by design, so 0 results is expected; (b) the feed itself refuses.
-  // Either way report the gap; an answering feed that drops these rows still fails.
-  const emStatus = service.router.status().providers.find((p) => p.id === 'eastmoney');
-  if (!emStatus || emStatus.healthy === false || emStatus.cooldownRemainingMs > 0) {
+  // check is only meaningful while the search chain answers. The search chain can
+  // be unavailable through no fault of ours (breaker cooldown after upstream RSTs
+  // on other endpoints); in that case report the gap. An answering feed that
+  // drops these rows still fails.
+  const chain = ['yahoo', 'stooq', 'nasdaq'];
+  const chainStatus = service.router.status().providers.filter((p) => chain.includes(p.id));
+  if (chainStatus.length && chainStatus.every((p) => p.healthy === false || p.cooldownRemainingMs > 0)) {
     return {
-      degraded: `eastmoney is in breaker cooldown, so the search chain skips it by design (${emStatus ? `${emStatus.consecutiveFailures} consecutive failures, ${emStatus.cooldownRemainingMs}ms left` : 'not registered'})`,
+      degraded: `the whole search chain is in breaker cooldown (${chainStatus.map((p) => `${p.id}:${p.cooldownRemainingMs}ms left`).join(', ')})`,
     };
   }
-  try {
-    const probe = await service.providers.get('eastmoney').searchStocks('SQQQ');
-    if (!probe.length) return { degraded: 'the suggest feed answered SQQQ with 0 rows' };
-  } catch (err) {
-    const gap = upstreamGap(err);
-    if (gap) return { degraded: `the suggest feed is unreachable — ${gap}` };
-    throw err;
-  }
   const reachable = [];
-  for (const q of ['SQQQ', 'ICLN', '银行', '领展']) {
+  for (const q of ['SQQQ', 'ICLN', 'Apple', 'NVIDIA']) {
     const out = await service.search(q, undefined, { force: true });
     assert.ok(out.data.results.length > 0, `no results for ${q}`);
     reachable.push(`${q}:${out.data.results[0].symbol}`);
   }
   const brk = await service.search('BRK.B', undefined, { force: true });
   assert.ok(brk.data.results.some((r) => r.symbol === 'BRK.B'), 'the underscore spelling must be retried upstream');
-  const hkBank = await service.search('银行', undefined, { force: true });
-  assert.ok(hkBank.data.results.some((r) => r.market === 'HK'), 'HK names must no longer be buried under A-shares');
   return reachable.join(' ');
 });
 
@@ -1093,72 +1054,44 @@ await check('the universe snapshot survives a restart', async () => {
   const revived = new StockUniverse({ logger, homeDir: tmp });
   await revived.init();
   assert.equal(revived.loadedCount('US'), before.counts.US, 'US rows must reload unchanged');
-  assert.equal(revived.loadedCount('HK'), before.counts.HK, 'HK rows must reload unchanged');
-  const hit = revived.search('长和', { market: 'HK' });
-  assert.ok(hit.length > 0 && hit[0].symbol === '0001.HK', `reloaded index must answer queries (got ${hit.length})`);
-  return `${revived.loadedCount('US')} US / ${revived.loadedCount('HK')} HK rows reloaded`;
+  const hit = revived.search('AAPL', { market: 'US' });
+  assert.ok(hit.length > 0 && hit[0].symbol === 'AAPL', `reloaded index must answer queries (got ${hit.length})`);
+  return `${revived.loadedCount('US')} US rows reloaded`;
 });
 
 log('\n== transport fallbacks: refused bulk feeds and short candle series (user request m02212) ==');
 
-await check('the registry carries the fallback feeds, scoped to what they can serve', async () => {
+await check('the registry carries the US feeds, scoped to what they can serve', async () => {
   const ids = [...service.providers.keys()];
-  for (const id of ['yahoo', 'eastmoney', 'tencent', 'stooq', 'sina', 'nasdaq']) {
+  for (const id of ['yahoo', 'stooq', 'nasdaq']) {
     assert.ok(ids.includes(id), `provider ${id} must be registered (got ${ids.join(', ')})`);
   }
   const nasdaq = service.providers.get('nasdaq');
   assert.equal(nasdaq.capabilities.universe, true, 'nasdaq serves the listing universe');
   assert.equal(nasdaq.capabilities.quote, false, 'nasdaq must not become a quote source');
   assert.deepEqual(nasdaq.listingMarkets, ['US'], 'nasdaq lists the US market only');
-  const sina = service.providers.get('sina');
-  assert.deepEqual(sina.listingMarkets, ['HK', 'CN'], 'sina lists the HK and A-share markets');
-  assert.equal(sina.supportsInterval('1d'), true, 'sina serves daily candles');
-  assert.equal(sina.supportsInterval('5m'), false, 'sina publishes no intraday series');
-  const { indexSupportFor, lookupIndex } = await import('../../lib/trading/indices.js');
-  assert.equal(indexSupportFor('sina', '^IXIC', 'candles'), true, 'sina publishes the Nasdaq Composite (dotted dialect)');
-  assert.equal(lookupIndex('^IXIC').sinaSymbol, '.IXIC', 'the dotted sina symbol is declared in the directory');
-  assert.equal(indexSupportFor('sina', '^GSPC', 'candles'), false, 'the S&P 500 has no sina series and must not be attempted');
-  assert.equal(indexSupportFor('sina', '^VIX', 'candles'), false, 'VIX candles stay unavailable rather than guessed');
   return `providers: ${ids.join(', ')}`;
 });
 
-await check('0.5.0: crypto is a first-class market (chain, boards, market-aware ranges)', async () => {
+await check('1.0.x: US is the only declared market (multi-market convergence)', async () => {
   const cfg = await import('../../lib/trading/config.js');
-  assert.deepEqual(cfg.MARKETS, ['US', 'HK', 'CN', 'JP', 'CRYPTO'], 'the five markets are declared in order');
-  assert.deepEqual(cfg.STOCK_MARKETS, ['US', 'HK', 'CN', 'JP'], 'the equity markets exclude crypto');
-  // The search chain is what used to be empty and made every crypto search throw NO_PROVIDER.
-  // `candidates()` returns {provider, id, healthy} rows, so compare ids.
-  const cryptoSearch = service.router.candidates('search', 'CRYPTO').map((c) => c.id);
-  assert.ok(cryptoSearch.includes('coinlore'), `coinlore serves crypto search (got ${cryptoSearch.join(', ')})`);
-  assert.deepEqual(
-    service.router.candidates('profile', 'CRYPTO').map((c) => c.id),
-    ['coinlore'],
-    'coinlore is the crypto profile source',
-  );
-  const cryptoQuotes = service.router.candidates('quote', 'CRYPTO').map((c) => c.id);
-  assert.ok(cryptoQuotes.includes('binance') && cryptoQuotes.includes('gate'), `crypto quotes: ${cryptoQuotes.join(', ')}`);
-  assert.ok(!cryptoQuotes.includes('coinlore'), 'coinlore must never be asked for a quote');
-  assert.equal(cfg.universeBoards('CRYPTO')[0].id, 'TOP', 'the crypto board id matches the provider');
-  assert.ok(cfg.UNIVERSE_PROVIDERS.CRYPTO.includes('coinlore'), 'coinlore supplies the crypto listing');
-  // Ranges: crypto trades 24/7, so a calendar day holds 24 hourly bars, not 7.
-  assert.equal(cfg.candleLimit('1mo', '1h', 'CRYPTO'), 730, `crypto 1mo/1h bars (got ${cfg.candleLimit('1mo', '1h', 'CRYPTO')})`);
-  assert.equal(cfg.candleLimit('6mo', '1d', 'CRYPTO'), 190, `crypto 6mo/1d bars (got ${cfg.candleLimit('6mo', '1d', 'CRYPTO')})`);
-  assert.equal(cfg.candleLimit('6mo', '1d'), 142, 'the equity sizing is unchanged');
+  assert.deepEqual(cfg.MARKETS, ['US'], 'the convergence keeps exactly one market');
+  assert.deepEqual(cfg.STOCK_MARKETS, ['US'], 'the equity markets are US only');
+  assert.equal(cfg.universeBoards('HK').length, 0, 'unsupported markets publish no boards');
+  const searchIds = service.router.candidates('search', 'US').map((c) => c.id);
+  assert.ok(searchIds.includes('yahoo'), `yahoo serves US search (got ${searchIds.join(', ')})`);
+  assert.equal(cfg.candleLimit('6mo', '1d'), 142, 'the US equity sizing is unchanged');
   assert.equal(cfg.candleLimit('1mo', '1h', 'US'), 164, 'US intraday sizing is unchanged');
-  assert.equal(cfg.minBars('1y', '1d', 'CRYPTO'), 41, `crypto 1y floor (got ${cfg.minBars('1y', '1d', 'CRYPTO')})`);
-  return `chain search: ${cryptoSearch.join(', ')} · quotes: ${cryptoQuotes.join(', ')}`;
+  assert.equal(cfg.minBars('1y', '1d'), 29, `1y floor (got ${cfg.minBars('1y', '1d')})`);
+  return `MARKETS=${cfg.MARKETS.join(',')} · search: ${searchIds.join(', ')}`;
 });
 
-await check('0.5.0: the directory tags every market with its own venue and currency', async () => {
+await check('the directory tags the US market with its venue and currency', async () => {
   const dir = service.directory;
   const cases = [
     ['AAPL', undefined, 'NASDAQ', 'USD'],
-    ['0700.HK', undefined, 'HKEX', 'HKD'],
-    ['600519.SH', undefined, 'SSE', 'CNY'],
-    ['000001.SZ', undefined, 'SZSE', 'CNY'],
-    ['920001.BJ', undefined, 'BSE', 'CNY'],
-    ['7203.T', undefined, 'JPX', 'JPY'],
-    ['BTC', 'CRYPTO', 'CRYPTO', 'USDT'],
+    ['MSFT', undefined, 'NASDAQ', 'USD'],
+    ['HOOD', undefined, 'NASDAQ', 'USD'],
   ];
   // A live search/universe row can enrich the directory with the provider's own
   // venue spelling (`NasdaqGS` for a NASDAQ listing). The contract is the venue
@@ -1172,57 +1105,52 @@ await check('0.5.0: the directory tags every market with its own venue and curre
     );
     assert.equal(record.currency, currency, `${symbol} currency (got ${record.currency})`);
   }
-  // A bare crypto ticker is indistinguishable from a US ticker: without the hint
-  // the directory answers US, which is why the service now passes the market in.
-  // (A previously enriched crypto row may already name the CRYPTO family.)
-  const bare = dir.lookup('BTC');
-  assert.ok(
-    venueFamily(bare.exchange).startsWith('NASDAQ') || venueFamily(bare.exchange).startsWith('CRYPTO'),
-    `no hint → the US reading (got ${bare.exchange})`,
-  );
-  const fixed = dir.enrich([{ symbol: '600519.SH', market: 'CN', currency: 'USD' }]);
-  assert.equal(fixed[0].currency, 'CNY', 'a US default on an A-share row is corrected');
-  return `directory: ${cases.length} markets tagged`;
+  return `directory: ${cases.length} US rows tagged`;
 });
 
-await check('0.5.0: JP and A-share names resolve locally, including kana', async () => {
+await check('US names resolve locally, including Chinese aliases', async () => {
   const dir = service.directory;
-  // Eastmoney's suggest feed answers a Tokyo code (`7203`) or a Chinese name
-  // (`丰田`) but returns nothing for the kana spelling, so the kana/rōmaji rows are
-  // seeded locally. Pin that, plus the A-share names, so a future seed edit cannot
-  // silently drop JP search back to "code only".
+  // The local seed names the popular US listings so a Chinese-language search
+  // resolves by name, not only by code. Pin the rows so a seed edit cannot
+  // silently drop the name search.
   const cases = [
-    ['トヨタ', 'JP', '7203.T'],
-    ['トヨタ自動車', 'JP', '7203.T'],
-    ['toyota', 'JP', '7203.T'],
-    ['ソニー', 'JP', '6758.T'],
-    ['キーエンス', 'JP', '6861.T'],
-    ['7203.T', 'JP', '7203.T'],
-    ['茅台', 'CN', '600519.SH'],
-    ['宁德时代', 'CN', '300750.SZ'],
+    ['苹果', 'AAPL'],
+    ['微软', 'MSFT'],
+    ['英伟达', 'NVDA'],
+    ['特斯拉', 'TSLA'],
+    ['AAPL', 'AAPL'],
   ];
-  for (const [query, market, symbol] of cases) {
-    const hits = dir.search(query, market, 3);
-    assert.ok(hits.length > 0, `${query} must find a ${market} listing`);
-    assert.equal(hits[0].symbol, symbol, `${query} → ${symbol} (got ${hits[0].symbol})`);
+  for (const [query, symbol] of cases) {
+    const hits = dir.search(query, 'US', 3);
+    assert.ok(hits.length > 0, `${query} must find a US listing`);
+    assert.equal(hits[0].symbol, symbol, `${query} → ${symbol} (got ${hits[0] ? hits[0].symbol : 'none'})`);
   }
-  const jp = dir.lookup('7203.T');
-  assert.equal(jp.exchange, 'JPX');
-  assert.equal(jp.currency, 'JPY');
-  // The kana row must not leak into another market's reading of the same word.
-  assert.equal(dir.search('トヨタ', 'US', 3).length, 0, 'a JP kana alias must not answer a US search');
-  return `kana/romaji/Chinese names resolve: トヨタ → ${dir.search('トヨタ', 'JP', 1)[0].symbol}`;
+  const aapl = dir.lookup('AAPL');
+  assert.equal(aapl.currency, 'USD', 'the currency is USD');
+  assert.equal(dir.search('伏特加', 'US', 3).length, 0, 'an unrelated word must not answer a US search');
+  return `US name search: 苹果 → ${dir.search('苹果', 'US', 1)[0] ? dir.search('苹果', 'US', 1)[0].symbol : 'MISS'}`;
 });
 
-await check('0.5.0: a crypto profile is written by the provider, not only by the stub', async () => {
-  const profile = await service.getProfile('BTC', { market: 'CRYPTO' });
-  const data = profile.data;
-  assert.equal(data.symbol, 'BTC', 'the canonical symbol comes back');
-  assert.equal(data.market, 'CRYPTO', 'the market is stamped');
-  assert.equal(data.currency, 'USDT', `crypto quotes in USDT (got ${data.currency})`);
-  assert.equal(data.exchange, 'CRYPTO', 'crypto has no listing venue of its own');
-  assert.ok(typeof data.description === 'string' && data.description.length > 40, 'a written profile is always present');
-  return `source: ${data.source || profile.meta.provider}, currency: ${data.currency}`;
+await check('0.6.x: unsupported markets are rejected clearly (crypto/HK removal)', async () => {
+  // The 1.0 convergence removed the multi-market stack. Explicit market
+  // parameters fail fast with a typed US-only error instead of touching the
+  // network; a legacy market hint on a symbol parse simply cannot resolve.
+  const { TradingError } = await import('../../lib/trading/errors.js');
+  for (const market of ['CRYPTO', 'HK']) {
+    const err = await service.search('NVDA', market, { force: true }).then(
+      () => null,
+      (e) => e,
+    );
+    assert.ok(err instanceof TradingError, `${market} search must be rejected (got ${err && err.constructor.name})`);
+    assert.ok(['BAD_REQUEST', 'UNSUPPORTED_MARKET', 'NOT_FOUND'].includes(err.code), `${market} rejection code (got ${err && err.code}: ${err && err.message})`);
+  }
+  // A legacy market hint left in a client is dropped: BTC resolves as a plain
+  // US ticker (the Grayscale spot-bitcoin ETF is a NASDAQ listing), so the
+  // read falls back to the US universe instead of a removed crypto market.
+  const legacy = await service.getProfile('BTC', { market: 'CRYPTO' });
+  assert.ok(legacy.data && legacy.data.name, 'the legacy hint falls back to the US listing for BTC');
+  assert.equal(legacy.data.market, 'US', 'the fallback market is US, never the removed crypto market');
+  return `CRYPTO/HK search rejected · BTC falls back to ${legacy.data.symbol} on US`;
 });
 
 await check('minBars rejects a token series without rejecting a young listing', async () => {
@@ -1252,10 +1180,7 @@ await check('a short series is skipped by the chain and never trips the provider
   });
   const providers = new Map([
     ['yahoo', stub('yahoo', 0, { fail: true })],
-    ['eastmoney', stub('eastmoney', 0, { fail: true })],
-    ['tencent', stub('tencent', 2)],
-    ['sina', stub('sina', 140)],
-    ['stooq', stub('stooq', 0, { fail: true })],
+    ['stooq', stub('stooq', 140)],
   ]);
   const health = new ProviderHealth();
   const router = new MarketDataRouter({ providers, health, logger: null });
@@ -1268,23 +1193,24 @@ await check('a short series is skipped by the chain and never trips the provider
     validate: (bars) => bars.length >= 17,
     sizeOf: (bars) => bars.length,
   });
-  assert.equal(run.provider, 'sina', `the full series must win (got ${run.provider})`);
+  assert.equal(run.provider, 'stooq', `the next provider in the chain must win (got ${run.provider})`);
   assert.equal(run.value.length, 140, 'the full series is returned');
   assert.equal(run.degraded, undefined, 'a validated answer is not degraded');
   const snapshot = health.snapshot();
   // 0.6.0 keys health per capability (`provider::feature`), so the assertion has
   // to look at the scope that was actually used, not at the provider id.
   const candleScope = (id) => healthScope(id, 'candles');
-  const tencentHealth = snapshot[candleScope('tencent')] || { failures: 0, healthy: true };
-  assert.equal(tencentHealth.failures, 0, 'two bars is not a provider failure — the breaker must stay closed');
-  assert.equal(health.isOpen(candleScope('tencent')), false, 'tencent stays healthy for the requests it can serve');
+  const shortHealth = snapshot[candleScope('stooq')] || { failures: 0, healthy: true };
+  assert.equal(shortHealth.failures, 0, 'two bars is not a provider failure — the breaker must stay closed');
+  assert.equal(health.isOpen(candleScope('stooq')), false, 'stooq stays healthy for the requests it can serve');
   assert.ok(
     (snapshot[candleScope('yahoo')] || {}).failures >= 1,
     'a real transport error still counts',
   );
 
-  // Every provider short: the fullest answer is returned instead of a hard error.
-  const shortOnly = new Map([['tencent', stub('tencent', 2)], ['sina', stub('sina', 4)]]);
+  // Every available provider short: the fullest answer is returned instead of a
+  // hard error. Outside providers are not consulted — the chain is fixed.
+  const shortOnly = new Map([['stooq', stub('stooq', 2)]]);
   const router2 = new MarketDataRouter({ providers: shortOnly, health, logger: null });
   const all = await router2.run({
     feature: 'candles',
@@ -1296,20 +1222,20 @@ await check('a short series is skipped by the chain and never trips the provider
     sizeOf: (bars) => bars.length,
   });
   assert.equal(all.degraded, true, 'the partial answer is flagged as degraded');
-  assert.equal(all.provider, 'sina', 'the largest partial series wins');
-  assert.equal(all.value.length, 4, 'the partial series is still returned');
-  return `winner=sina (140 bars) · tencent failures=${tencentHealth.failures} · degraded fallback=4 bars`;
+  assert.equal(all.provider, 'stooq', 'the only available partial series wins');
+  assert.equal(all.value.length, 2, 'the partial series is still returned');
+  return `winner=stooq (140 bars after yahoo refused) · stooq failures=${shortHealth.failures} · degraded fallback=2 bars`;
 });
 
 await check('the US listing feed falls back to the next provider when the primary is refused', async () => {
   const refused = {
-    id: 'eastmoney',
+    id: 'refused-feed',
     label: 'refused',
     markets: ['US'],
     listingMarkets: ['US'],
     boards: () => [{ id: 'NASDAQ', label: 'NASDAQ' }],
     listSecurities: async () => {
-      throw new TradingError('UPSTREAM_ERROR', 'eastmoney request failed: socket hang up');
+      throw new TradingError('UPSTREAM_ERROR', 'refused request failed: socket hang up');
     },
   };
   const fallback = {
@@ -1341,13 +1267,12 @@ await check('the US listing feed falls back to the next provider when the primar
     () => null,
     (err) => err,
   );
-  assert.ok(failure && failure.code === 'NO_PROVIDER', `a market without a feed must fail loudly (got ${failure && failure.code})`);
-  return `US feed fell back to nasdaq (board ${first.board}), HK reported NO_PROVIDER`;
+  assert.equal(failure && failure.code, 'BAD_REQUEST', `a market without a feed must fail loudly (got ${failure && failure.code})`);
+  return `US feed fell back to nasdaq (board ${first.board}), unsupported market reported ${failure && failure.code}`;
 });
 
-await check('the fallback feeds answer for real (nasdaq US table, sina HK list)', async () => {
+await check('the fallback feeds answer for real (the US table is live)', async () => {
   const { NasdaqProvider } = await import('../../lib/trading/providers/nasdaq.js');
-  const { SinaProvider } = await import('../../lib/trading/providers/sina.js');
   const { RateLimiter } = await import('../../lib/trading/http.js');
   const nasdaq = new NasdaqProvider({ logger, limiter: new RateLimiter(), intervals: [] });
   const us = await nasdaq.listSecurities({ market: 'US', page: 1, size: 100 });
@@ -1355,14 +1280,7 @@ await check('the fallback feeds answer for real (nasdaq US table, sina HK list)'
   assert.equal(us.rows.length, 100, 'the first page is a full page');
   assert.ok(/^[A-Z][A-Z0-9.\-]{0,9}$/.test(us.rows[0].symbol), `symbols must be plain US tickers (got ${us.rows[0].symbol})`);
   assert.ok(us.pages > 30, `the table must page (got ${us.pages})`);
-  const sina = new SinaProvider({ logger, limiter: new RateLimiter(), intervals: ['1d'] });
-  const hk = await sina.listSecurities({ market: 'HK', page: 1, size: 60 });
-  assert.equal(hk.rows.length, 60, `the HK list publishes 60 rows per page (got ${hk.rows.length})`);
-  assert.ok(hk.rows.every((r) => r.symbol.endsWith('.HK')), 'every HK row carries a .HK symbol');
-  assert.ok(hk.rows.some((r) => /[\u4e00-\u9fff]/.test(r.name)), 'the HK list carries Chinese names');
-  assert.equal(hk.pages, null, 'the HK feed publishes no page count');
-  assert.equal(hk.hasMore, true, 'a full page means there is more to fetch');
-  return `nasdaq total=${us.total} pages=${us.pages} · sina HK ${hk.rows.length}/page first=${hk.rows[0].symbol} ${hk.rows[0].name}`;
+  return `nasdaq total=${us.total} pages=${us.pages} first=${us.rows[0].symbol} ${us.rows[0].name}`;
 });
 
 await check('the live universe endpoint names the feed that served it', async () => {
@@ -1371,10 +1289,8 @@ await check('the live universe endpoint names the feed that served it', async ()
   assert.ok(value.provider, 'the response names the feed');
   const board = (value.boards || []).find((b) => b.market === 'US');
   assert.ok(board && board.provider === value.provider, `the board list follows the serving feed (${board && board.provider} vs ${value.provider})`);
-  const hk = await api.route('GET', ['universe'], { query: new Map([['market', 'HK'], ['size', '50']]), req: null, force: false });
-  assert.ok(hk.rows.length > 0, 'the HK browser must return rows');
-  assert.ok(hk.rows.every((r) => r.symbol.endsWith('.HK')), 'HK rows keep their market symbol');
-  return `US via ${value.provider} (${value.rows.length} rows) · HK via ${hk.provider} (${hk.rows.length} rows)`;
+  assert.ok(value.rows.every((r) => r.symbol && r.market === 'US'), 'US rows keep their market symbol');
+  return `US via ${value.provider} (${value.rows.length} rows)`;
 });
 
 log('\n== summary ==');
