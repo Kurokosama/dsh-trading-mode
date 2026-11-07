@@ -1177,6 +1177,8 @@ await check('positions: the total remembers what it was worth, one point a day',
   assert(wide && wide.count === 2 && wide.points !== line.points, 'the same series redraws at another size');
   assert(internals.CSS.includes(".tm-portfolio__trend[role='button']"), 'the line is announced as clickable');
   assert(internals.CSS.includes('.tm-portfolio__trend--open'), 'the expanded line has its own style');
+  assert(internals.CSS.includes('.tm-portfolio__item { display: inline-flex; align-items: baseline; flex-wrap: wrap;'), 'a narrow card wraps the totals instead of breaking words');
+  assert(internals.CSS.includes('font-variant-numeric: tabular-nums; white-space: nowrap; }'), 'a total never breaks mid-label');
   return 'history recorded per day';
 });
 
