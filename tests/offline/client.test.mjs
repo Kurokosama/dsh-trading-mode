@@ -453,6 +453,20 @@ await check('alerts: the history can be downloaded as a spreadsheet', async () =
   return 'alert csv ok';
 });
 
+await check('help: the dialog explains the marks, not only the keys', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  assert(Array.isArray(internals.LEGEND) && internals.LEGEND.length >= 5, 'the legend is a table of marks');
+  for (const row of internals.LEGEND) {
+    assert(row.mark && row.label, 'every legend row has a mark and a sentence');
+    assert(internals.ZH[row.label], `every legend sentence is localised: ${row.label}`);
+  }
+  assert(internals.ZH['What the marks mean'] === '标记说明', 'the section heading is localised');
+  assert(String(internals.TradingApp).includes('LEGEND.map'), 'the dialog lists the legend');
+  assert(internals.CSS.includes('.tm-kbd--mark'), 'the marks have their own style');
+  return 'legend ok';
+});
+
 await check('home: the jump chip carries the week it is asking you to look at', async () => {
   const home = String(internals.HomeView);
   assert(home.includes('onCounts: setEventCounts'), 'the board reports its counts up to the page');
