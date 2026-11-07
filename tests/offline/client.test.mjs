@@ -852,6 +852,31 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('news: the home feed can be held to the last day, and it says when that is empty', () => {
+  const I = internals
+  const CSS = I.CSS
+  const zhT = I.makeT('zh')
+  assert(CSS.includes('.tm-news__chip--on'), 'the today chip has an active state')
+  assert(CSS.includes('.tm-news__empty'), 'the empty case has its own line')
+  assert(zhT('Today') === '今天', 'the filter reads 今天 in Chinese')
+  assert(zhT('{n} today', { n: 3 }) === '今天 3 条', 'the count is localised')
+  assert(zhT('Nothing about your positions in the last 24 hours.').includes('24'), 'the empty line explains the window')
+
+  const now = Date.UTC(2026, 10, 7, 15, 0, 0)
+  const items = [
+    { symbol: 'AAPL', at: now - 3600_000 }, // an hour ago
+    { symbol: 'NVDA', at: now - 23 * 3600_000 }, // just inside
+    { symbol: 'VOO', at: now - 25 * 3600_000 }, // yesterday
+    { symbol: 'MSFT', at: null }, // no usable stamp
+    { symbol: 'TSM' }, // no stamp at all
+  ]
+  const kept = I.recentNews(items, now)
+  assert(kept.length === 2, `only the last day survives (got ${kept.map((i) => i.symbol).join(',')})`)
+  assert(kept[0].symbol === 'AAPL' && kept[1].symbol === 'NVDA', 'order is preserved, undated rows are dropped')
+  assert(I.recentNews(items, now, 48).length === 3, 'the window is a parameter, not a constant')
+  assert(I.recentNews(null, now).length === 0 && I.recentNews([], now).length === 0, 'no feed means no rows')
+})
+
 await check('news: headlines are dated, linked, and localised', () => {
   const I = internals
   const CSS = I.CSS
