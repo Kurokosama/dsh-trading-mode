@@ -470,6 +470,29 @@ await check('company profile for AAPL (US-only build)', async () => {
   return names.join(' | ');
 });
 
+await check('ETF profile facts: fund family, fee and the ten largest positions', async () => {
+  let out;
+  try {
+    out = await service.getProfile('VOO', { force: true });
+  } catch (err) {
+    const gap = upstreamGap(err);
+    if (!gap) throw err;
+    return { degraded: `profile feed unavailable — ${gap}` };
+  }
+  const d = out.data;
+  if (d.source !== 'yahoo') return { degraded: `VOO profile came from ${d.source}, which carries no fund facts` };
+  assert.ok(d.fundFamily && /vanguard/i.test(d.fundFamily), `fund family (got ${d.fundFamily})`);
+  // The fee is published as a fraction upstream (0.0003) and must surface as a
+  // percent (0.03); a 100x miss would show 3% for an index fund.
+  assert.ok(Number.isFinite(d.expenseRatio) && d.expenseRatio > 0 && d.expenseRatio < 1, `expense ratio in (0,1) percent (got ${d.expenseRatio})`);
+  assert.ok(Number.isFinite(d.dividendYield) && d.dividendYield >= 0 && d.dividendYield < 40, `dividend yield in percent (got ${d.dividendYield})`);
+  assert.ok(Array.isArray(d.holdings) && d.holdings.length === 10, `ten holdings (got ${d.holdings && d.holdings.length})`);
+  const total = d.holdings.reduce((sum, item) => sum + (item.weight || 0), 0);
+  assert.ok(total > 20 && total <= 100.5, `weights cover a sane share of the fund (got ${total.toFixed(2)}%)`);
+  assert.ok(d.holdings.every((item) => item.symbol || item.name), 'every holding is nameable');
+  return `${d.fundFamily} fee=${d.expenseRatio}% yield=${d.dividendYield}% holdings=${d.holdings.length} top=${d.holdings[0].symbol}@${d.holdings[0].weight}%`;
+});
+
 log('\n== cache behaviour (§41/§42) ==');
 await check('second quote is served from cache', async () => {
   const first = await service.getQuote('AAPL');

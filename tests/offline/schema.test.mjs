@@ -71,7 +71,20 @@ test('schema: the top-ten holdings list is trimmed to presentable facts', () => 
   assert.equal(nameless.symbol, undefined)
   // Junk weights disappear rather than render as filler rows.
   assert.ok(!p.holdings.some((item) => item.symbol === 'JUNK' || item.symbol === 'WEIRD'))
-  assert.ok(p.holdings.every((item) => item.weight == null || item.weight >= 0))
+  assert.ok(p.holdings.every((item) => item.weight == null || (item.weight > 0 && item.weight <= 100)))
+  // A "weight" above 100 is impossible for a share of the fund: it is either a
+  // double-scaled figure or junk, so the row drops instead of showing 839%.
+  const absurd = makeProfile({
+    symbol: 'VOO',
+    market: 'US',
+    name: 'VOO',
+    holdings: [
+      { name: 'Oversized', weight: 839 },
+      { name: 'Zero', weight: 0 },
+      { name: 'Fine', weight: 4.5 },
+    ],
+  })
+  assert.deepEqual(absurd.holdings.map((item) => item.name), ['Fine'])
 })
 
 test('schema: no holdings input keeps the field empty rather than fabricating rows', () => {

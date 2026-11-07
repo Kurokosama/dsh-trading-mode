@@ -28,7 +28,7 @@
   - **股息与费率字段**：个股详情基本面新增股息率、年度股息（每股、按报价币种）；ETF 详情新增
     净费率与基金公司。数据随 Yahoo 档案请求（`fundProfile` 模块，已缓存六小时），字段缺席时
     不渲染；股息率统一规整为年化百分数（Yahoo v10 返回分数率，`makeProfile` 归一）。
-  - **前十大持仓表**：ETF 详情新增「前十大持仓」卡（Yahoo `fundProfile.topHoldings`），每行
+  - **前十大持仓表**：ETF 详情新增「前十大持仓」卡（Yahoo `topHoldings` 模块），每行
     自带相对权重条（以最大权重为基准），带代码的持仓可点击直达该成分股详情；数据缺席即整
     卡隐藏，最多 10 行、坏行丢弃。
   - **宏观发布卡**：首页事件提醒卡下方新增「美国宏观发布」卡，按日期升序列出未来 30 天内的
@@ -112,6 +112,16 @@
 - **Crypto and non-US leftovers are gone from the engine.** The `CRYPTO_*` configuration, the crypto branch of `parseSymbol`/`currencyOf`, the HK/CN/JP seed lists in `SEED_WATCHLIST` / `RECOMMENDED_STARTERS`, and the "HKEX, SSE, SZSE, BSE, JPX and the top coins" copy in the universe browser were all still reachable from a build that only ships US feeds. They now reject with `UNSUPPORTED_MARKET` or are deleted outright.
 
 ### 修复
+
+- **档案数值字段全部为空（市值、P/E、股息率、年度股息、费率、基金公司、前十大持仓）**：
+  Yahoo 的 `quoteSummary` 把每个数值包成 `{ raw, fmt, longFmt }`，而 provider 直接交给了只认
+  `number | string` 的数值解析，结果一律落成 `null`——profile 路径上的市值与 P/E 从上线起就没
+  显示过，后加的四项基本面字段同样恒空。现在统一先解包（`raw` 优先、`fmt` 兜底），并把三处键名
+  与模块改对：ETF 持仓改从独立的 `topHoldings` 模块读取（`holdings[].holdingPercent` 是分数，
+  换算成百分数），净费率取 `feesExpensesInvestment.annualReportExpenseRatio`，基金公司取
+  `fundProfile.family`。实测 VOO：Vanguard、净费率 0.03%、股息率 1.07%、10 行持仓（NVDA 8.39%）。
+  同一轮新增 host 网络检查「ETF profile facts」——按真实上断言家族/费率区间/收益率区间/10 行持仓/
+  权重合计，避免这类"字段名对不对"的问题再次静默通过离线套件。
 
 - **涨跌幅整列显示「—」**：Yahoo 请求带 `fields=regularMarketPrice`，响应被截断，
   `regularMarketChange` / `regularMarketChangePercent` / `regularMarketPreviousClose` 全缺；
