@@ -628,6 +628,21 @@ await check('event board: three calendars merge into one chronological, filterab
   assert(String(internals.EventBoard).includes('also arrive as a desktop alert'), 'the board says where the reminder comes from');
   assert(/[\u4e00-\u9fff]/.test(internals.ZH['Today and tomorrow also arrive as a desktop alert while this tab is hidden.'] || ''), 'the reminder note localises');
   assert(String(internals.EventBoard).includes('tm-events-type'), 'the type chip remembers itself like the window does');
+  // A toast is gone once dismissed; the reminder also has to leave a line in
+  // the alert history, with the event's own shorthand in the symbol column.
+  assert(rem.items.length === 3, `every row inside two days is recorded, got ${rem.items.length}`);
+  assert(rem.items.slice(0, 2).every((item) => item.when === 'today') && rem.items[2].when === 'tomorrow', 'each entry keeps the day it belongs to');
+  assert(rem.items.every((item) => item.hit === 'event' && item.type), 'calendar entries carry their kind');
+  assert(rem.items[0].symbol === 'MSFT', `an earnings reminder is tagged with its ticker, got ${rem.items[0].symbol}`);
+  assert(tomorrowOnly.items[0].symbol === 'CPI', `a macro reminder keeps the print shorthand, got ${tomorrowOnly.items[0].symbol}`);
+  assert(internals.alertLogReason({ hit: 'event', type: 'earnings', when: 'today' }, zh) === '财报 \u00b7 今天', 'the history line is rebuilt in the reader language');
+  assert(internals.alertLogReason({ hit: 'event', type: 'macro', when: 'tomorrow' }, en) === 'Macro \u00b7 tomorrow', 'and in English when that is the language');
+  const logged = internals.appendAlerts([], rem.items, 1000);
+  assert(logged.length === 3 && logged.every((entry) => entry.type && entry.when), 'appendAlerts keeps the calendar fields instead of dropping them');
+  assert(String(internals.useEventReminder).includes('tm-ev-logged') && String(internals.useEventReminder).includes('record(items)'), 'the history line is written once per day, before the toast waits for a hidden tab');
+  assert(String(internals.EventBoard).includes('recordLog'), 'the board feeds the shared log so the history card updates itself');
+  assert(internals.CSS.includes('.tm-alog__row--event'), 'calendar entries are styled apart from price alerts');
+  assert(String(internals.AlertLogCard).includes("openable ? 'button' : 'div'"), 'only rows with a page behind them stay buttons');
   return 'sort, window, four filters, impact lines and zh titles hold over one merged payload';
 });
 
