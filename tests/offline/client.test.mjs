@@ -474,7 +474,23 @@ await check('macro card: the curated calendar maps to bilingual, bilingual label
   }
   const zhHint = internals.ZH['Macro prints move every position at once; CPI and FOMC days are the widest windows.'];
   assert(zhHint && /[\u4e00-\u9fff]/.test(zhHint), 'the macro hint must be localised');
-  return '6 kind labels + hint resolve in zh';
+  // Detail strip: only a release inside the next three days is rendered.
+  const en = internals.makeT('en');
+  const now = { events: [{ kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 1 }] };
+  const far = { events: [{ kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'October CPI', days: 5 }] };
+  const stripText = (node) => {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map(stripText).join('');
+    const props = node.props || {};
+    return stripText(props.children);
+  };
+  const snippet = stripText(internals.nextMacro(now, en));
+  assert(internals.nextMacro(far, en) === null, 'a print five days out must stay silent on the detail page');
+  assert(internals.nextMacro(null, en) === null, 'missing window data must stay silent');
+  assert(snippet.includes('US CPI') && snippet.includes('08:30 ET'), `the strip must name the print and its ET time, got ${snippet}`);
+  assert(stripText(internals.nextMacro({ events: [{ kind: 'cpi', date: '2026-11-10', time: '08:30', ref: 'CPI', days: 1 }] }, zh)).includes('宏观数据'), 'the strip must localise in zh');
+  return '6 kind labels + hint resolve in zh; detail strip gates at 3 days';
 });
 
 await check('i18n: technical grid follows the selected language', async () => {
