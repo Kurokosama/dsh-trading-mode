@@ -38,6 +38,7 @@ const SUITES = [
   ['identity', 'identity.test.mjs'],
   ['sec', 'sec.test.mjs'],
   ['calendar', 'calendar.test.mjs'],
+  ['directory', 'directory.test.mjs'],
   ['macro', 'macro.test.mjs'],
   ['holidays', 'holidays.test.mjs'],
   ['news', 'news.test.mjs'],
