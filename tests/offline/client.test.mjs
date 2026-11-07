@@ -585,7 +585,7 @@ await check('price alerts: bounds are per market, and only a real price fires th
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-alerts__row') && internals.CSS.includes('.tm-alertfield__in'), 'the banner and the editor ship their CSS');
   assert(zh('Price alert') === '价格提醒', 'the editor label localises');
-  assert(zh('{n} price alerts triggered') === '{n} 条价格提醒已触发', 'the banner count localises');
+  assert(zh('{n} alerts triggered') === '{n} 条提醒已触发', 'the banner count localises');
   assert(zh('above') === '高于' && zh('below') === '低于', 'both bounds localise');
   // The key is market-qualified: a US listing and a crypto pair can share a
   // ticker, and an alert armed on one must not fire on the other.
@@ -622,6 +622,31 @@ await check('price alerts: the watched price is the latest print, extended hours
   const latest = print({ price: 100, extended: { session: 'post', price: 151 } });
   assert(internals.alertHit(latest.price, { above: 150, below: null }) === 'above', 'the alert fires on the print it is handed');
   return 'extended print wins while fresh, broken blocks fall back, no print no alarm';
+});
+
+await check('position alerts: a loss threshold fires only on a real position', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-alerts__what'), 'the banner carries the reason a row fired');
+  assert(zh('max loss') === '最大亏损 %', 'the percent field localises');
+  assert(zh('down {pct} from your cost').includes('低于你的成本'), 'the loss reason localises');
+  // The threshold is a percentage off the cost basis, so it needs a position:
+  // without one there is no loss to speak of, and the row must stay quiet.
+  const hit = internals.lossHit;
+  assert(hit({ pct: -12.5 }, { loss: 10 }) === 'loss', 'a position past its threshold fires');
+  assert(hit({ pct: -10 }, { loss: 10 }) === 'loss', 'the threshold itself fires');
+  assert(hit({ pct: -9.9 }, { loss: 10 }) === null, 'a smaller drawdown stays quiet');
+  assert(hit({ pct: 5 }, { loss: 10 }) === null, 'a gain never fires a loss alert');
+  assert(hit(null, { loss: 10 }) === null, 'no position, no claim about a loss');
+  assert(hit({ pct: -20 }, { loss: null }) === null, 'no threshold armed means no fire');
+  assert(hit({ pct: null }, { loss: 10 }) === null, 'an unknown percent never fires');
+  // The percent and the price bounds live in one entry, and neither erases the other.
+  const map = { 'US:AAPL': { above: 200, loss: '15' } };
+  const armed = internals.alertOf(map, { market: 'US', symbol: 'AAPL' });
+  assert(armed && armed.above === 200 && armed.loss === 15 && armed.below === null, `both kinds survive together: ${JSON.stringify(armed)}`);
+  assert(internals.alertOf({ 'US:X': { loss: 0 } }, { market: 'US', symbol: 'X' }) === null, 'a zero threshold is not an alert');
+  const text = internals.alertBoundsText({ above: null, below: null, loss: 15 }, zh, 'USD');
+  assert(text.includes('最大亏损') && text.includes('15%'), `the summary names the percent field: ${text}`);
+  return 'a percent threshold, keyed by market, silent without a position';
 });
 
 await check('positions: a cost basis turns a row into value and open P&L', async () => {
