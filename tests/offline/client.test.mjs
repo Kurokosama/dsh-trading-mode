@@ -642,6 +642,29 @@ await check('price alerts: the watched price is the latest print, extended hours
   return 'extended print wins while fresh, broken blocks fall back, no print no alarm';
 });
 
+await check('board pulse: breadth counts only rows with a real day change', async () => {
+  const I = internals
+  const pulse = I.marketPulse([
+    { symbol: 'AAPL', market: 'US', quote: { changePct: 1.2 } },
+    { symbol: 'NVDA', market: 'US', quote: { changePct: -5.4 } },
+    { symbol: 'VOO', market: 'US', quote: { changePct: 0 } },
+    { symbol: 'SPY', market: 'US', quote: { price: 700 } },
+  ])
+  assert(pulse.total === 4, 'every row counts toward the total')
+  assert(pulse.counted === 3, 'only rows with a numeric day change count toward breadth')
+  assert(pulse.up === 1 && pulse.down === 1 && pulse.flat === 1, 'up, down and unchanged are separate')
+  assert(pulse.lead.symbol === 'NVDA' && pulse.lead.changePct === -5.4, 'the steepest move leads, whichever way it went')
+  assert(pulse.lead.market === 'US', 'the lead keeps its market so the row can open')
+  const quiet = I.marketPulse([{ symbol: 'VTI', quote: { changePct: 0 } }])
+  assert(quiet.lead === null, 'a flat board has no lead')
+  assert(I.marketPulse(null).total === 0 && I.marketPulse([]).counted === 0, 'a missing list cannot throw')
+  assert(/\.tm-pulse__lead/.test(I.CSS), 'the strip ships its own styles')
+  const zh = I.makeT('zh')
+  assert(zh('{up} up {down} down', { up: 3, down: 5 }) === '3 涨 5 跌', 'breadth localises')
+  assert(zh('Largest move: {sym}', { sym: 'NVDA' }) === '最大波动 NVDA', 'the lead label localises')
+  return 'pulse counts breadth and the single steepest move'
+})
+
 await check('after hours: the board only lists prints that actually moved', async () => {
   const I = internals
   const movers = I.afterHoursMovers([
