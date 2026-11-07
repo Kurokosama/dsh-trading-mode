@@ -1142,6 +1142,18 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('news: the ticker in a headline opens that name, the headline stays a link', () => {
+  const css = internals.CSS
+  const zh = internals.makeT('zh')
+  assert(css.includes('.tm-news__body'), 'the row splits into a ticker and the article body')
+  assert(css.includes('.tm-news__sym:hover'), 'the ticker looks pressable without a second colour')
+  assert(source.includes('const marketOf = (symbol) =>'), 'the held row decides the market, not the feed')
+  assert(source.includes("onClick: () => onOpen({ symbol: item.symbol, market: marketOf(item.symbol) })"), 'the ticker opens the detail page')
+  assert(source.includes("className: 'tm-news__body'"), 'the article itself keeps an anchor')
+  assert(zh('Open {name}', { name: 'NVDA' }).includes('NVDA'), 'the ticker tooltip localises')
+  return 'a headline can be read or its name opened, without nesting one link in another'
+});
+
 await check('keys: one table describes the shortcuts, and `?` respects text fields', () => {
   const I = internals
   const CSS = I.CSS
@@ -1344,7 +1356,8 @@ await check('news: headlines are dated, linked, and localised', () => {
   }
   // Narrow screens wrap the byline under the headline; it stays right-aligned there and a
   // long headline is clamped to two lines so rows keep an even height.
-  assert(CSS.includes('.tm-news__meta { width: 100%; justify-content: flex-end; margin-top: 2px; }'), 'the wrapped byline is right-aligned')
+  assert(CSS.includes('.tm-news__body { flex-wrap: wrap; }'), 'the headline cell wraps the byline itself')
+  assert(CSS.includes('.tm-news__meta { flex: 1 0 100%; justify-content: flex-end; margin-top: 2px; }'), 'the wrapped byline is right-aligned')
   assert(CSS.includes('.tm-news__title { display: -webkit-box; -webkit-line-clamp: 2;'), 'a long headline stops at two lines')
   const zh = internals.makeT('zh')
   assert(zh('In the news') === '相关新闻', 'the card title is localised')
