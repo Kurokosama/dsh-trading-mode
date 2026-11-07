@@ -243,6 +243,30 @@ await check('apply registers the sidebar row and its main panel', async () => {
   return `slots=${registry.map((entry) => entry.key).join(', ')}`;
 });
 
+await check('apply still registers the page when the host never runs the main injection', async () => {
+  const registry = [];
+  const ctx = {
+    effect(fn, label) {
+      const disposer = fn();
+      effects.push({ label, disposer });
+      return disposer;
+    },
+    slots: {
+      inject() { return () => {}; },   // accepted, callback never called
+      register(options, Component) {
+        registry.push({ key: options.name });
+        return () => {};
+      },
+    },
+  };
+  mod.apply(ctx);
+  assert(
+    registry.some((entry) => entry.key === 'main'),
+    'the page must be registered even when the injection callback never runs',
+  );
+  return `registered: ${registry.map((entry) => entry.key).join(', ')}`;
+});
+
 await check('dispose removes the injected stylesheet', async () => {
   for (const entry of effects) {
     if (typeof entry.disposer === 'function') entry.disposer();
