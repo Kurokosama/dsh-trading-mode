@@ -22,6 +22,8 @@ import {
   buildUserMessage,
   derivedSuggestions,
   localBrief,
+  localNewsDigest,
+  NEWS_SYSTEM_PROMPT,
   normalizeBrief,
   qualityFor,
   readerBook,
@@ -976,7 +978,39 @@ await check('1.1: a defensive tape frames every row before the row-level ideas',
     return 'sanitised book in, book line out, nothing invented';
   });
 
-  await check('the brief can be written without a model, and it says so', () => {
+  await check('1.2: the news digest keeps clean model lines and falls back to counts', async () => {
+  const ai = new TradingAi({});
+  ai.askJson = async (system, userText, opts) => {
+    assert.match(system, /digest/);
+    assert.match(userText, /NVDA/);
+    assert.equal(opts.lang, 'zh');
+    return { value: { digest: { lines: ['NVDA：two titles', 'AAPL：one title'] } }, meta: { route: 'fake' } };
+  };
+  const fed = [
+    { symbol: 'nvda', title: 'one' },
+    { symbol: 'NVDA', title: 'two' },
+    { symbol: 'AAPL', title: 'one' },
+    { symbol: 'AAPL', title: '' },
+    { symbol: '!', title: 'no ticker' },
+  ];
+  const out = await ai.newsDigest(fed, { lang: 'zh' });
+  assert.deepEqual(out.digest.lines, ['NVDA：two titles', 'AAPL：one title']);
+  assert.equal(out.meta.local, false);
+  assert.equal(out.meta.items, 3, 'rows without a symbol or a title are not counted');
+
+  ai.askJson = async () => ({ value: { digest: { lines: [] } }, meta: {} });
+  await ai.newsDigest(fed, { lang: 'en' }).then(
+    () => { throw new Error('empty lines must fail'); },
+    (err) => { if (!/no digest lines/.test(String(err && err.message))) throw err; },
+  );
+
+  // The no-model fallback is counts only: never a translated or copied title.
+  const lines = localNewsDigest(fed);
+  assert.deepEqual(lines, ['NVDA · 2', 'AAPL · 1'], 'counts first, ticker order alphabetical on ties, unknown tickers dropped');
+  assert.match(NEWS_SYSTEM_PROMPT, /digest/);
+});
+
+await check('the brief can be written without a model, and it says so', () => {
     const input = buildBriefInput({
       stocks: [
         { symbol: 'NVDA', quote: { price: 180, changePct: 2.4 }, technical: { technical: { volumeRatio20d: 2.1, rsi14: 72 } } },

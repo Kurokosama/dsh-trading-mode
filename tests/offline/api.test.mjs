@@ -444,6 +444,37 @@ await suite.check('1.1: GET /news trims the headline list and refuses writes', a
   return `/news: ${value.length} rows, limit forwarded, writes refused`;
 });
 
+await suite.check('POST /news/summary compresses the feed and counts without a model', async () => {
+  const { api, ai } = buildApi({ service: fakeService() });
+  const asked = [];
+  ai.newsDigest = async (items, opts) => {
+    asked.push({ symbols: [...new Set(items.map((row) => row.symbol))], opts });
+    return { digest: { lines: ['NVDA：up again', 'AAPL：quiet'], lang: opts.lang }, meta: { local: false, items: items.length } };
+  };
+  const res = await call(api, { method: 'POST', url: '/api/trading/news/summary', body: { symbols: ['nvda', 'NVDA', 'AAPL'], lang: 'zh' } });
+  assert.equal(res.status, 200, JSON.stringify(res.payload));
+  assert.deepEqual(res.payload.value.digest.lines, ['NVDA：up again', 'AAPL：quiet'], 'the model lines travel untouched');
+  assert.equal(res.payload.value.meta.local, false);
+  assert.deepEqual(asked[0].symbols, ['NVDA', 'AAPL'], 'the feed is fetched once for the cleaned, deduped list');
+  assert.equal(asked[0].opts.lang, 'zh');
+
+  ai.newsDigest = async () => {
+    throw new TradingError('AI_UNAVAILABLE', 'no model configured');
+  };
+  const local = await call(api, { method: 'POST', url: '/api/trading/news/summary', body: { symbols: ['AAPL'] } });
+  assert.equal(local.status, 200);
+  assert.equal(local.payload.value.meta.local, true);
+  assert.deepEqual(local.payload.value.digest.lines, ['AAPL · 1'], 'the fallback is headline counts, never a translated title');
+
+  const blank = await call(api, { method: 'POST', url: '/api/trading/news/summary', body: { symbols: [] } });
+  assert.equal(blank.status, 400, 'an empty list is refused before any upstream call');
+  const get = await call(api, { method: 'GET', url: '/api/trading/news/summary' });
+  assert.equal(get.status, 400, 'the summary is POST-only');
+  const post = await call(api, { method: 'POST', url: '/api/trading/news/AAPL' });
+  assert.equal(post.status, 400, 'summary does not open every second segment to POST');
+  return 'summary: model lines, count fallback, POST-only, cleaned symbols';
+});
+
 await suite.check('two identities sharing one store never see each other', async () => {
   const store = memoryWatchlist();
   const first = buildApi({ watchlist: store, user: 'local-1' });

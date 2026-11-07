@@ -949,6 +949,54 @@ await check('brief: a ring of editions can be paged, labelled as history', async
   }
 });
 
+await check('news: the holdings card leads with a digest when one is on disk', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const store = new Map();
+  const previous = globalThis.window.localStorage;
+  globalThis.window.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  try {
+    assert(internals.readNewsDigest('NVDA,AAPL', 'zh') === null, 'an empty store has no digest');
+    assert(internals.writeNewsDigest('NVDA,AAPL', 'zh', ['NVDA\uFF1A\u8D22\u62A5\u540E\u5927\u6DA8', 'AAPL\uFF1A\u65B0\u54C1\u4F20\u95FB\uFF0C\u51B2\u9AD8\u56DE\u843D\u3002']) === true, 'a valid digest is kept');
+    const kept = internals.readNewsDigest('NVDA,AAPL', 'zh');
+    assert(kept && kept.length === 2, 'the digest reads back');
+    assert(internals.readNewsDigest('NVDA,AAPL', 'en') === null, 'another language has no digest');
+    assert(internals.readNewsDigest('MSFT', 'zh') === null, 'another symbol set has no digest');
+    const fresh = store.get('tm-news-digest');
+    const parsedFresh = JSON.parse(fresh);
+    parsedFresh.at = Date.now() - 7 * 60 * 60 * 1000;
+    store.set('tm-news-digest', JSON.stringify(parsedFresh));
+    assert(internals.readNewsDigest('NVDA,AAPL', 'zh') === null, 'a digest past its TTL is not served');
+    store.set('tm-news-digest', fresh);
+    assert(internals.writeNewsDigest('NVDA', 'zh', []) === false, 'nothing to say is not cached');
+    assert(internals.writeNewsDigest('NVDA', 'zh', [1, 2]) === false, 'numbers are not digest lines');
+    store.set('tm-news-digest', 'not json');
+    assert(internals.readNewsDigest('NVDA', 'zh') === null, 'broken json is ignored');
+
+    const row = renderToStaticMarkup(internals.newsDigestRow('NVDA\uFF1A\u8D22\u62A5\u540E\u7EE7\u7EED\u51B2\u9AD8\uFF0C\u6536\u5728\u65B0\u9AD8\u9644\u8FD1\u3002', () => () => {}));
+    assert(row.includes('tm-news__digest'), 'the row carries its class');
+    assert(row.includes('NVDA'), 'the ticker is on its own element');
+    assert(row.includes('\u8D22\u62A5\u540E\u7EE7\u7EED\u51B2\u9AD8'), 'the sentence travels with it');
+    const plain = renderToStaticMarkup(internals.newsDigestRow('\u5B8F\u89C2\uFF1A\u4ECA\u665A CPI\u3002', () => () => {}));
+    assert(plain.includes('\u5B8F\u89C2'), 'a lowercase lead falls back to plain text, not a broken split');
+    assert(internals.ZH['Digest view'] === '\u603B\u7ED3', 'the view toggle is localised');
+    assert(internals.ZH['Headlines view'] === '\u539F\u6587', 'and its pair');
+    assert(internals.CSS.includes('.tm-news__digest'), 'the digest row has its style hook');
+    assert(String(internals.HoldingNewsCard).includes("apiPost('/news/summary'"), 'the card asks the digest route');
+    assert(String(internals.HoldingNewsCard).includes('readNewsDigest(key, lang)'), 'the cache answers before the network');
+    assert(String(internals.HoldingNewsCard).includes('!key || !aiAvailable'), 'no model in the session, no summary request');
+    assert(String(internals.HomeView).includes('HoldingNewsCard, { rows, costs, onOpen, aiAvailable }'), 'the home page passes whether a model exists');
+    assert(String(internals.HomeView).includes('hotPrePost.length'), 'extended hours only shares a row when it has movers');
+  } finally {
+    globalThis.window.localStorage = previous;
+  }
+  return 'news digest ok';
+});
+
 await check('brief: the last edition survives a reload, but not a language switch', async () => {
   const store = new Map();
   const previous = globalThis.window.localStorage;
