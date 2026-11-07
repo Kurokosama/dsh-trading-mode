@@ -467,6 +467,41 @@ await check('home: the jump chip carries the week it is asking you to look at', 
   return 'jump badge ok';
 });
 
+await check('watchlist: the day is named by its cause, not just its total', async () => {
+  const quote = (price) => ({ price, change: 0, changePct: 0, currency: 'USD' });
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: quote(210) },
+    { symbol: 'NVDA', market: 'US', quote: quote(90) },
+    { symbol: 'MSFT', market: 'US', quote: quote(300) },
+  ];
+  const costs = {
+    'US:AAPL': { price: 200, shares: 10 },
+    'US:NVDA': { price: 100, shares: 10 },
+  };
+  const probe = internals.positionOf({ price: 210, change: 1, currency: 'USD' }, { price: 200, shares: 10 });
+  assert(probe && typeof probe.today === 'number', `positionOf must carry today, got ${JSON.stringify(probe)}`);
+  const day = internals.dayDrivers(rows, costs);
+  assert(day.currency === 'USD', 'the largest book speaks');
+  assert(day.today === 0, `total is the sum of both positions, got ${day.today}`);
+  assert(day.up === null && day.down === null, 'a flat day names nobody');
+  const moved = internals.dayDrivers(
+    [
+      { symbol: 'AAPL', market: 'US', quote: { price: 211, change: 1, changePct: 0.5, currency: 'USD' } },
+      { symbol: 'NVDA', market: 'US', quote: { price: 91, change: 2, changePct: 2.2, currency: 'USD' } },
+    ],
+    { 'US:AAPL': { price: 200, shares: 10 }, 'US:NVDA': { price: 100, shares: 10 } },
+  );
+  assert(moved.today > 0, 'a rising book has a positive day');
+  assert(moved.up && moved.up.symbol === 'NVDA', 'the bigger dollar gain leads, not the bigger percent');
+  assert(moved.down === null, 'nothing fell, so nobody is named as the drag');
+  assert(internals.dayDrivers([], costs) === null, 'no rows, no line');
+  assert(internals.dayDrivers(rows, null) === null, 'no cost basis, no claim');
+  assert(internals.ZH['Today {amount}'] === '今天 {amount}', 'the line is localised');
+  assert(internals.CSS.includes('.tm-day'), 'the line has its own hook');
+  assert(String(internals.WatchlistCard).includes('dayDrivers(rows, costs)'), 'the card renders it');
+  return 'day drivers ok';
+});
+
 await check('notes: a huge move on a tiny position is not a decision', async () => {
   const t = internals.makeT('en');
   const rows = [
