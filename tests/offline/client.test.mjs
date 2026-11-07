@@ -804,6 +804,51 @@ await check('panel: a rendering failure leaves an explainer, not a blank page', 
   assert(clean.includes('<b>ok</b>') && !clean.includes('tm-crash'), 'a healthy child passes through untouched');
   assert(internals.CSS.includes('.tm-crash__msg'), 'the message block is styled');
   return 'crash boundary covered';
+
+
+});
+
+
+await check('load: a fault while the factory body runs paints the banner, not blank', async () => {
+  const appended = [];
+  const body = { appendChild: (node) => appended.push(node) };
+  const document = {
+    body,
+    createElement: () => ({ setAttribute: () => {}, textContent: '' }),
+  };
+  const previous = globalThis.window;
+  const previousDoc = globalThis.document;
+  globalThis.window = { __ModuleLoader__: { load: (spec) => { globalThis.__dshLoad = spec; } }, document };
+  globalThis.document = document;
+  try {
+    new Function(readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8'))();
+    const spec = globalThis.__dshLoad;
+    delete globalThis.__dshLoad;
+    assert(spec && typeof spec.factory === 'function', 'the loader registers a factory');
+    const broken = () => { throw new Error('boom during require'); };
+    const result = spec.factory(broken);
+    assert(result && result.name === 'dsh-trading-mode', 'the load reports a stub rather than dying');
+    assert(appended.length === 1, 'exactly one banner is painted');
+    assert(appended[0].textContent.indexOf('[trading-mode] The panel could not start.') === 0, 'the banner carries the plugin tag');
+    assert(appended[0].textContent.includes('boom during require'), 'the browser error text travels with it');
+    // A DOM-less host (probe servers, CI shells) must not throw instead.
+    globalThis.window = { __ModuleLoader__: { load: (spec2) => { spec2.factory(broken); } }, document: null };
+    new Function(readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8'))();
+    // The happy path is unchanged: a working require yields the real exports.
+    globalThis.window = { __ModuleLoader__: { load: (spec3) => { globalThis.__dshLoad = spec3; } }, document };
+    new Function(readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8'))();
+    const healthy = globalThis.__dshLoad;
+    delete globalThis.__dshLoad;
+    const real = healthy.factory((id) => (id === 'react' ? react : broken));
+    assert(real && typeof real === 'object' && real.name === 'trading-mode', 'a healthy load still exports the plugin');
+    const source = readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8');
+    assert(source.includes('function tmLoadFactory(require)'), 'the factory body lives in its own hoisted function');
+    assert(source.includes('return tmLoadFactory(require)'), 'the registration only wraps it');
+  } finally {
+    globalThis.window = previous;
+    if (previousDoc === undefined) delete globalThis.document; else globalThis.document = previousDoc;
+  }
+  return 'load crash banner covered';
 });
 
 await check('help: the panel can report its own runtime state', async () => {
