@@ -756,6 +756,25 @@ await check('panel: a mounted page carries a pin outside the host layout', async
   return 'pin covered';
 });
 
+await check('panel: a rendering failure leaves an explainer, not a blank page', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  // Legacy SSR re-throw render-time errors, so the boundary itself cannot be
+  // exercised through renderToStaticMarkup; drive the fallback directly.
+  const boundary = new internals.CrashBoundary({ t: internals.makeT('en') });
+  const derived = internals.CrashBoundary.getDerivedStateFromError(new Error('boom message'));
+  boundary.state = derived;
+  const html = renderToStaticMarkup(boundary.render());
+  assert(html.includes('Trading Mode failed to render'), 'the fallback names the failure');
+  assert(html.includes('boom message'), 'the browser message is shown, not swallowed');
+  assert(html.includes('Reload the panel'), 'the way out is offered');
+  assert(internals.ZH['Trading Mode failed to render'] === '交易模式渲染失败', 'zh title ships');
+  const clean = renderToStaticMarkup(React.createElement(internals.CrashBoundary, { t: internals.makeT('en') }, React.createElement('b', null, 'ok')));
+  assert(clean.includes('<b>ok</b>') && !clean.includes('tm-crash'), 'a healthy child passes through untouched');
+  assert(internals.CSS.includes('.tm-crash__msg'), 'the message block is styled');
+  return 'crash boundary covered';
+});
+
 await check('help: the panel can report its own runtime state', async () => {
   const t = internals.makeT('en');
   const rows = internals.diagnostics(t);
