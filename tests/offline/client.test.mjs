@@ -647,6 +647,34 @@ await check('positions: a cost basis turns a row into value and open P&L', async
   return 'basis drafts normalise, markets stay separate, value and P&L agree';
 });
 
+await check('positions: an exported list carries the holdings, and an older file still imports', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('{n} positions restored from the file.', { n: 2 }).includes('2'), 'the restore report localises');
+  const parse = internals.parseWatchlistCsv;
+  assert(parse !== undefined, 'the CSV parser is exposed so the round trip can be tested');
+  // The export writes Symbol,Market,Name,Tags,Favorite,Price,Change,Change %,Time,Cost,Shares.
+  const fresh = [
+    'Symbol,Market,Name,Tags,Favorite,Price,Change,Change %,Time,Cost,Shares',
+    'AAPL,US,Apple Inc.,core|long,Y,342.65,0.28,0.08,17:19,180.5,10',
+    'MSFT,US,Microsoft,,N,420.1,-1.2,-0.28,17:19,,',
+  ].join('\r\n');
+  const parsed = parse(fresh);
+  assert(parsed.length === 2, `two rows survive the parse, got ${parsed.length}`);
+  assert(parsed[0].cost === 180.5 && parsed[0].shares === 10, `the holding columns come back as numbers, got ${JSON.stringify(parsed[0])}`);
+  assert(parsed[0].tags.join('|') === 'core|long' && parsed[0].isFavorite === true, 'the older columns still parse');
+  // A row with no holding is not a zero-size position.
+  assert(parsed[1].cost === undefined && parsed[1].shares === undefined, 'blank holding cells stay undefined');
+  // A file written before the columns existed is still a valid import.
+  const legacy = ['Symbol,Market,Name,Tags,Favorite', 'NVDA,US,NVIDIA,,N'].join('\n');
+  const old = parse(legacy);
+  assert(old.length === 1 && old[0].cost === undefined, 'an older export imports without holdings');
+  // Junk in a holding column must not become a position at a made-up price.
+  const junk = ['Symbol,Market,Name,Tags,Favorite,Price,Change,Change %,Time,Cost,Shares', 'TSLA,US,Tesla,,N,,,,,abc,-5'].join('\n');
+  const bad = parse(junk);
+  assert(bad[0].cost === undefined && bad[0].shares === undefined, 'non-numeric or negative holdings are dropped');
+  return 'holdings survive the CSV round trip, and legacy files still import';
+});
+
 await check('positions: the list sorts by open P&L, and a row that is no position sinks', async () => {
   const zh = internals.makeT('zh');
   assert(zh('By P&L') === '按浮盈', 'the sort chip is labelled in Chinese');
