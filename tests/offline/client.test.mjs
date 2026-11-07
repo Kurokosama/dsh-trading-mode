@@ -509,6 +509,7 @@ await check('home: the jump chip carries the week it is asking you to look at', 
   assert(home.split("className: 'tm-pair'").length === 3, 'two rows share a pair grid');
   assert(internals.CSS.includes('.tm-pair'), 'the pair grid is styled');
   assert(internals.CSS.includes('@media (min-width: 1000px)'), 'pairing only starts on a wide panel');
+  assert(internals.CSS.includes('.tm-pair > .tm-card { height: 100%'), 'the shorter card fills the row instead of leaving a gap');
 
 });
 
