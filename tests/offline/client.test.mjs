@@ -1108,6 +1108,23 @@ await check('news: the home feed can be held to the last day, and it says when t
   assert(I.recentNews(null, now).length === 0 && I.recentNews([], now).length === 0, 'no feed means no rows')
 })
 
+await check('watchlist: the arrow keys walk the list and stop at neither end', () => {
+  assert(typeof internals.nextNavIndex === 'function', 'nextNavIndex is exported')
+  // Nothing highlighted yet: the first press lands where the reader expects.
+  assert(internals.nextNavIndex(-1, 5, 1) === 0, 'down from nothing starts at the top')
+  assert(internals.nextNavIndex(-1, 5, -1) === 4, 'up from nothing starts at the bottom')
+  assert(internals.nextNavIndex(0, 5, 1) === 1, 'down advances one row')
+  assert(internals.nextNavIndex(4, 5, 1) === 0, 'down wraps to the top')
+  assert(internals.nextNavIndex(0, 5, -1) === 4, 'up wraps to the bottom')
+  // An index left over from a longer list must not strand the highlight.
+  assert(internals.nextNavIndex(9, 5, 1) === 0, 'a stale index falls back to the top')
+  assert(internals.nextNavIndex(0, 0, 1) === -1, 'an empty list has nothing to walk')
+  assert(internals.CSS.includes('.tm-row--nav'), 'the highlighted row has a style of its own')
+  const t = internals.makeT('zh')
+  assert(t('Move through the results or the list').includes('列表'),
+    'the shortcut sheet says the arrows also walk the list')
+})
+
 await check('news: headlines are dated, linked, and localised', () => {
   const I = internals
   const CSS = I.CSS
