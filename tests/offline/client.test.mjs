@@ -2520,6 +2520,27 @@ await check('watchlist: a position missing from the list is called out, not sile
   return 'orphans covered';
 });
 
+await check('export: the spreadsheet carries what the position is worth, not just its ticker', async () => {
+  const csv = internals.watchlistCsv;
+  const rows = [
+    { symbol: 'AAPL', market: 'US', name: 'Apple, Inc.', quote: { price: 210, change: 2, changePct: 0.96, time: '2026-11-07T20:00:00Z' } },
+    { symbol: 'MSFT', market: 'US', name: 'Microsoft', quote: { price: 400 } },
+  ];
+  const costs = { 'US:AAPL': { price: 200, shares: 10 } };
+  const text = csv(rows, costs);
+  const lines = text.split('\r\n');
+  assert(lines[0].endsWith('Cost,Shares,Value,Open P&L,Today'), `header: ${lines[0]}`);
+  const apple = lines[1];
+  assert(apple.startsWith('AAPL,US,"Apple, Inc."'), `name with a comma stays quoted: ${apple}`);
+  assert(apple.endsWith(',200,10,2100,100,20'), `position columns: ${apple}`);
+  const microsoft = lines[2];
+  assert(microsoft.endsWith(',,,,,,'), `no cost basis leaves the money cells empty: ${microsoft}`);
+  assert(csv([], costs).split('\r\n').length === 1, 'a header-only export is still a file');
+  assert(csv(null, null).split('\r\n')[0].includes('Value'), 'null rows keep the header');
+  assert(!text.startsWith('\ufeff'), 'the BOM belongs to the blob, not the text');
+  return 'csv covered';
+});
+
 await check('home: the jump chips point at cards that exist, and the scroll is guarded', async () => {
   const zh = internals.makeT('zh');
   assert(internals.JUMP_TARGETS.length === 3, 'three jumps: board, calendar, brief');
