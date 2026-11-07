@@ -89,6 +89,35 @@ await suite.check('the file backend round-trips one row per market', async () =>
   }
 });
 
+await suite.check('1.1: tags sanitise, cap, dedupe and round-trip', async () => {
+  const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'trading-watchlist-tags-'));
+  const store = new WatchlistStore({ homeDir: home });
+  try {
+    await store.init();
+    const seeded = (await store.add('local-1', {
+      symbol: 'AAPL',
+      market: 'US',
+      name: 'Apple',
+      tags: [' 核心仓 ', 'dip', 'dip', 41, null, 'x'.repeat(40)],
+    })).item;
+    // Trim drops the padding and dedupe drops the repeat; a non-string and a
+    // null slide off; an over-long tag is cut to 24 chars.
+    assert.deepEqual(seeded.tags, ['核心仓', 'dip', 'x'.repeat(24)]);
+    const empty = await store.setTags('local-1', 'AAPL', ['  ', undefined]);
+    assert.deepEqual(empty.tags, [], 'a list with no usable strings clears the tags');
+    const capped = await store.setTags('local-1', 'AAPL', ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
+    assert.equal(capped.tags.length, 8, 'at most 8 tags survive');
+    const again = await store.list('local-1');
+    assert.deepEqual(again[0].tags, capped.tags, 'the stored row keeps the tag set');
+    const cleared = await store.setTags('local-1', 'AAPL', []);
+    assert.deepEqual(cleared.tags, [], 'an empty array clears the tags');
+    return `${capped.tags.length}-tag cap verified`;
+  } finally {
+    await store.dispose();
+    await fs.promises.rm(home, { recursive: true, force: true });
+  }
+});
+
 // The host owns zod; resolve it the same way the client suite resolves react.
 function resolveZod() {
   const roots = [
