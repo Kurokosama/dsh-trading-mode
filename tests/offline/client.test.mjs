@@ -1537,6 +1537,37 @@ await check('event board: the held switch drops the reports the reader does not 
   assert(source.includes('tm-events-held'), 'the switch is remembered between visits');
   assert(source.includes("t('Held only')"), 'the chip is part of the board');
   assert(source.includes('positions.size'), 'the chip only appears once a position exists');
+  assert(source.split("key: 'held'").length === 2, `the held chip must render once, got ${source.split("key: 'held'").length - 1}`);
+});
+
+await check('event board: the rows leave as an .ics file the system calendar can import', async () => {
+  const ics = internals.eventsIcs;
+  const zh = internals.makeT('zh');
+  const empty = ics([]);
+  assert(empty.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n'), 'the header opens with the calendar shell');
+  assert(empty.endsWith('END:VCALENDAR\r\n'), 'the header closes cleanly');
+  assert(!empty.includes('BEGIN:VEVENT'), 'no rows means no events');
+  const text = ics([
+    { date: '2026-11-20', type: 'earnings', title: 'NVDA, Inc. 财报', impact: 'Reports after the close, the next open reprices it' },
+    { date: '2026-11-26', type: 'closure', title: '感恩节', impact: 'Closed all day: no fills, and prices stand still' },
+    { date: 'bad', type: 'earnings', title: 'skipped' },
+  ]);
+  assert(text.includes('DTSTART;VALUE=DATE:20261120'), `the date lands as an all-day start, got ${text.split('\r\n').filter((line) => line.includes('DTSTART')).join(' | ')}`);
+  const summaryLine = text.split('\r\n').find((line) => line.startsWith('SUMMARY:'));
+  assert(summaryLine === 'SUMMARY:NVDA\\, Inc. 财报', `encoded summary, got ${JSON.stringify(summaryLine)}`);
+  assert(text.includes('DESCRIPTION:Reports after the close\\, the next open reprices it'), 'the impact sentence travels as the description');
+  assert(text.includes('UID:tm-2026-11-20-earnings-0@'), 'each row gets its own stable identity');
+  assert(text.split('BEGIN:VEVENT').length - 1 === 2 && text.split('END:VEVENT').length - 1 === 2, 'two well-formed events carry the file');
+  assert(zh('Save to calendar') === '存入日历', zh('Save to calendar') || 'the action button localises');
+  assert(
+    zh('Download these rows to import into your calendar') === '把这几行导出成日历文件，导入你自己的日历',
+    'the tooltip says what the file is for',
+  );
+  const source = String(internals.EventBoard);
+  assert(source.includes('trading-events-${today}.ics'), 'the file name carries the day');
+  assert(source.includes("'text/calendar;charset=utf-8'"), 'the download advertises the calendar MIME type');
+  assert(String(internals.saveTextFile).includes("mime = 'text/plain;charset=utf-8'"), 'the saver accepts a MIME type');
+  assert(String(internals.saveTextFile).includes('\\ufeff\' + text'), 'plain-text saves keep their BOM');
 });
 
 await check('brief: an action idea says whether it lands on a position you hold', async () => {
