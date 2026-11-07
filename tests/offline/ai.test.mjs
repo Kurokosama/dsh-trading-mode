@@ -576,7 +576,37 @@ async function main() {
     return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
   });
 
-  await check('1.1: a defensive tape frames every row before the row-level ideas', () => {
+  await check('1.1: three prints in one week are one risk, said once', () => {
+  const snapshot = {
+    stocks: [
+      { symbol: 'NVDA', price: 188.2, changePct: -0.4 },
+      { symbol: 'AAPL', price: 342.65, changePct: 0.1 },
+      { symbol: 'MSFT', price: 501.1, changePct: 0.3 },
+      { symbol: 'VTI', price: 310.2, changePct: 0.05 },
+    ],
+    earnings: {
+      today: '2026-11-06',
+      bySymbol: {
+        NVDA: { date: '2026-11-07', session: 'am' },
+        AAPL: { date: '2026-11-08', session: 'am' },
+        MSFT: { date: '2026-11-09', session: 'pm' },
+        VTI: { date: '2026-12-16', session: 'am' },
+      },
+    },
+  };
+  const input = buildBriefInput(snapshot);
+  const en = derivedSuggestions(input, 'en');
+  assert(en[0].includes('3 of your names'), `the cluster leads, got ${en[0]}`);
+  assert(en[0].includes('NVDA, AAPL, MSFT'), `the names are listed, got ${en[0]}`);
+  assert(en[0].includes('one risk'), `the point is in the line, got ${en[0]}`);
+  const zh = derivedSuggestions(input, 'zh');
+  assert(zh[0].includes('3 只自选'), `中文首行说明集中, got ${zh[0]}`);
+  assert(zh[0].includes('NVDA、AAPL、MSFT') || zh[0].includes('NVDA, AAPL, MSFT'), `中文列名, got ${zh[0]}`);
+  const two = derivedSuggestions(buildBriefInput({ stocks: snapshot.stocks.slice(0, 2), earnings: { today: '2026-11-06', bySymbol: { NVDA: { date: '2026-11-07' }, AAPL: { date: '2026-11-08' } } } }), 'en');
+  assert(two.every((line) => !line.includes('report within three days')), 'two prints are not a cluster');
+});
+
+await check('1.1: a defensive tape frames every row before the row-level ideas', () => {
     const stocks = [{ symbol: 'AAPL', quote: { price: 210, changePct: -0.4 } }];
     const tape = [
       { symbol: '^GSPC', name: 'S&P 500', price: 6782.44, changePct: -1.62 },
