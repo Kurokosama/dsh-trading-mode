@@ -459,6 +459,24 @@ await check('session clock: the US phase follows the New York wall clock', async
   return 'pre/open/post/closed boundaries all answer from the ET clock';
 });
 
+await check('macro card: the curated calendar maps to bilingual, bilingual labels and the localised windows', async () => {
+  const zh = internals.makeT('zh');
+  // Every kind the server table can send must resolve to a label entry.
+  assert(internals.MacroCard && String(internals.MacroCard).includes('/macro?days=30'), 'the card reads the curated /macro route');
+  const kinds = internals.MACRO_KINDS || {};
+  const labels = Object.values(kinds);
+  assert(
+    labels.length === 6 && ['US CPI', 'US PPI', 'US jobs report (NFP)', 'US GDP', 'Income & Outlays (PCE)', 'FOMC decision'].every((label) => labels.includes(label)),
+    `the card must name all six macro labels, got ${labels.join(', ')}`,
+  );
+  for (const label of labels) {
+    assert(zh(label) !== label, `zh misses a translation for ${label}`);
+  }
+  const zhHint = internals.ZH['Macro prints move every position at once; CPI and FOMC days are the widest windows.'];
+  assert(zhHint && /[\u4e00-\u9fff]/.test(zhHint), 'the macro hint must be localised');
+  return '6 kind labels + hint resolve in zh';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
