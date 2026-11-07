@@ -467,6 +467,43 @@ await check('home: the jump chip carries the week it is asking you to look at', 
   return 'jump badge ok';
 });
 
+await check('watchlist: what changed while the panel was closed is named', async () => {
+  const prev = { at: 1762480000000, rows: { AAPL: 100, NVDA: 200, MSFT: 300 } };
+  const rows = [
+    { symbol: 'AAPL', quote: { price: 103 } },
+    { symbol: 'NVDA', quote: { price: 190 } },
+    { symbol: 'MSFT', quote: { price: 300.4 } },
+    { symbol: 'TSLA', quote: { price: 400 } },
+  ];
+  const changed = internals.visitChanges(prev, rows);
+  assert(changed.length === 2, `only moves past the floor are listed, got ${changed.length}`);
+  assert(changed[0].symbol === 'NVDA' && Math.abs(changed[0].pct + 5) < 1e-9, 'the biggest move leads');
+  assert(changed[1].symbol === 'AAPL', 'then the smaller one');
+  assert(!changed.some((entry) => entry.symbol === 'TSLA'), 'a name that was not there before is not a change');
+  assert(!changed.some((entry) => entry.symbol === 'MSFT'), 'a 0.13% drift is noise, not news');
+  assert(internals.visitChanges(null, rows).length === 0, 'no snapshot, no claim');
+  const store = new Map();
+  const previous = globalThis.window.localStorage;
+  globalThis.window.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  try {
+    assert(internals.writeVisit(rows) === true, 'a visit with live prices is recorded');
+    const back = internals.readVisit();
+    assert(back && back.rows.NVDA === 190, 'and reads back with prices');
+    assert(internals.writeVisit([]) === false, 'an empty board records nothing');
+    assert(internals.ZH['Since you last looked'] === '自上次打开', 'the line is localised');
+    assert(internals.CSS.includes('.tm-since'), 'the line has its own hook');
+    assert(String(internals.WatchlistCard).includes('visitChanges(prevVisit, rows)'), 'the card uses the helper');
+  } finally {
+    if (previous === undefined) delete globalThis.window.localStorage;
+    else globalThis.window.localStorage = previous;
+  }
+  return 'visit changes ok';
+});
+
 await check('watchlist: the day is named by its cause, not just its total', async () => {
   const quote = (price) => ({ price, change: 0, changePct: 0, currency: 'USD' });
   const rows = [
