@@ -1649,6 +1649,24 @@ await check('event board: the rows leave as an .ics file the system calendar can
   assert(String(internals.saveTextFile).includes("mime = 'text/plain;charset=utf-8'"), 'the saver accepts a MIME type');
   assert(String(internals.saveTextFile).includes('\\ufeff\' + text'), 'plain-text saves keep their BOM');
 });
+await check('event board: calendar entries carry the minute the print lands', async () => {
+  const ics = internals.eventsIcs;
+  const timed = ics([
+    { date: '2026-11-10', type: 'macro', time: '08:30', title: 'US CPI', impact: 'Inflation print: rate expectations reprice every position at once' },
+    { date: '2026-06-10', type: 'macro', time: '14:00', title: 'summer print', impact: 'summer edge of the DST window' },
+    { date: '2026-12-09', type: 'macro', time: '14:00', title: 'FOMC decision', impact: 'Rate decision: usually the widest move window of the month' },
+    { date: '2026-11-20', type: 'macro', time: 'not-a-time', title: 'fallback', impact: 'bad time falls back to the all-day entry' },
+  ]);
+  assert(timed.includes('DTSTART:20261110T133000Z'), `a winter 08:30 ET print becomes 13:30Z, got ${timed.split('\r\n').filter((line) => line.includes('DTSTART')).join(' | ')}`);
+  assert(timed.includes('DTEND:20261110T134500Z'), 'the timed window is fifteen minutes');
+  assert(timed.includes('DTSTART:20260610T180000Z'), 'a summer 14:00 ET print becomes 18:00Z');
+  assert(timed.includes('DTSTART:20261209T190000Z'), 'a winter 14:00 ET print becomes 19:00Z');
+  assert(timed.includes('DTSTART;VALUE=DATE:20261120'), 'a malformed clock time falls back to the all-day entry');
+  assert(internals.isUsDst('2026-03-08') === true && internals.isUsDst('2026-06-15') === true, 'DST runs from the second Sunday in March');
+  assert(internals.isUsDst('2026-11-01') === false && internals.isUsDst('2026-12-15') === false, 'and ends on the first Sunday in November');
+  assert(internals.etToUtcStamp('2026-11-10', '25:00') === null && internals.etToUtcStamp('bad', '08:30') === null, 'malformed input poses no entry');
+});
+
 
 await check('brief: an action idea says whether it lands on a position you hold', async () => {
   const rows = [
