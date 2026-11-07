@@ -273,3 +273,38 @@ test('schema: the short book and the stakes behind a name land in percent', () =
   const empty = makeProfile({ symbol: 'VOO', name: 'Vanguard S&P 500 ETF', ownership: {} })
   assert.equal(empty.ownership, undefined, 'nothing usable means no block at all')
 })
+
+test('schema: sell-side momentum keeps the mix and the grade changes', () => {
+  const profile = makeProfile({
+    symbol: 'AAPL',
+    name: 'Apple',
+    ratings: {
+      // Junk in the buckets must not become a slice: a negative count would
+      // draw backwards, and a string would poison the total.
+      trend: { strongBuy: 6, buy: 18, hold: 14, sell: 'x', strongSell: -2 },
+      changes: [
+        { firm: 'UBS', action: 'up', from: 'Neutral', to: 'Buy', at: 1762387200000 },
+        { firm: 'Argus', action: 'main', from: 'Buy', to: 'Buy', at: 1762214400000 },
+        { firm: 'Nope', action: 'downgrade', from: 'Buy', to: 'Sell', at: 1762300800000 },
+        { firm: 'X'.repeat(80), action: 'init', from: null, to: 'Outperform', at: 1762128000000 },
+        { firm: 'Stale', action: 'down', from: 'Buy', to: 'Hold', at: 0 },
+      ],
+    },
+  });
+  const r = profile.ratings;
+  assert.equal(r.trend.total, 38, 'the total is the sum of usable buckets');
+  assert.equal(r.trend.sell, 0, 'a non-numeric bucket reads as zero');
+  assert.equal(r.trend.strongSell, 0, 'a negative bucket reads as zero');
+  assert.equal(r.changes.length, 3, 'an unknown action and a missing timestamp are dropped');
+  assert.deepEqual(r.changes.map((row) => row.firm.slice(0, 4)), ['UBS', 'Argu', 'XXXX'], 'the newest record leads');
+  assert.equal(r.changes[2].firm.length, 40, 'a long firm name is clamped, not dropped');
+  assert.equal(r.changes[2].from, null, 'a first-time rating has no previous grade');
+
+  const trendOnly = makeProfile({ symbol: 'MSFT', name: 'Microsoft', ratings: { trend: { buy: 3 } } }).ratings;
+  assert.equal(trendOnly.trend.total, 3, 'a mix without any changes still ships');
+  assert.deepEqual(trendOnly.changes, [], 'and reports no changes rather than null');
+
+  const none = makeProfile({ symbol: 'VOO', name: 'Vanguard S&P 500 ETF', ratings: { trend: { hold: 0 }, changes: [] } });
+  assert.equal(none.ratings, undefined, 'nothing usable means no block at all');
+  assert.equal(makeProfile({ symbol: 'SPY', name: 'SPDR S&P 500' }).ratings, undefined, 'a fund without coverage carries no ratings key');
+})

@@ -544,6 +544,46 @@ await check('detail page: dated events arrive in order and the calendar asks for
   return 'near ex-dividend ranks first, past dates stay out, the calendar request names one ticker';
 });
 
+await check('analyst card: the mix and the grade changes are read, not just listed', async () => {
+  const zh = internals.makeT('zh');
+  const day = 86_400_000;
+  const now = Date.UTC(2026, 11, 1, 15, 0);
+  const ratings = {
+    trend: { strongBuy: 6, buy: 18, hold: 14, sell: 3, strongSell: 3, total: 44 },
+    changes: [
+      { firm: 'Bernstein', action: 'main', from: 'Buy', to: 'Buy', at: now - 2 * day },
+      { firm: 'UBS', action: 'up', from: 'Neutral', to: 'Buy', at: now - 5 * day },
+      { firm: 'Argus', action: 'main', from: 'Buy', to: 'Strong Buy', at: now - 9 * day },
+      { firm: 'Barclays', action: 'down', from: 'Buy', to: 'Hold', at: now - 400 * day },
+    ],
+  };
+  const mix = internals.ratingMix(ratings);
+  assert(mix.total === 44 && mix.segments.length === 5, 'every bucket with a voice is drawn');
+  const pct = mix.segments.reduce((sum, seg) => sum + seg.pct, 0);
+  assert(Math.abs(pct - 100) < 1e-6, 'the bar fills the whole width');
+  const thin = internals.ratingMix({ trend: { buy: 4, hold: 0, sell: 0, strongBuy: 0, strongSell: 0, total: 4 } });
+  assert(thin.segments.length === 1, 'an empty slice is dropped instead of claiming nobody sells');
+  assert(internals.ratingMix({ trend: { total: 0 } }) === null, 'no coverage means no mix');
+  const changes = internals.ratingChanges(ratings, now);
+  assert(changes.length === 2, `a restatement and a stale row drop out, got ${changes.length}`);
+  assert(changes[0].firm === 'UBS' && changes[0].days === 5, 'newest first, with an age in days');
+  assert(changes[1].firm === 'Argus' && changes[1].action === 'main', 'a maintain that moved the wording still counts');
+  assert(internals.ratingChanges({ changes: [] }, now).length === 0, 'nothing on record stays quiet');
+  // Six months is the horizon: an old upgrade is not a reason to act today.
+  const oldOnly = internals.ratingChanges({ changes: [{ firm: 'Barclays', action: 'up', from: 'Hold', to: 'Buy', at: now - 200 * day }] }, now);
+  assert(oldOnly.length === 0, 'a change older than six months is history');
+  assert(internals.CSS.includes('.tm-rate__bar') && internals.CSS.includes('.tm-rate__seg--strongSell'), 'the mix bar ships theme-token CSS');
+  assert(internals.CSS.includes('.tm-rate__action--up') && internals.CSS.includes('.tm-rate__action--down'), 'a raise and a cut read differently');
+  assert(zh('Ratings mix') === '评级分布' && zh('Rating changes') === '评级变动', 'the card labels localise');
+  assert(zh('Raised') === '上调' && zh('Cut') === '下调' && zh('Started') === '首次覆盖', 'each action has a verdict word');
+  assert(zh('Strong sell') === '强力卖出', 'the fifth bucket localises');
+  assert(zh('No rating changes in the last six months.') === '近半年没有评级变动。', 'the empty state localises');
+  assert(zh('{n} days ago', { n: 3 }) === '3 天前', 'the age line interpolates');
+  assert(String(internals.DetailView).includes('tm-rate__bar'), 'the analyst card draws the mix');
+  assert(String(internals.DetailView).includes("t('Rating changes')"), 'and lists the changes');
+  return 'mix, filtered changes, CSS and dictionary all resolve';
+});
+
 await check('etf holdings: the top-ten table ships with weight bars and bilingual titles', async () => {
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');
