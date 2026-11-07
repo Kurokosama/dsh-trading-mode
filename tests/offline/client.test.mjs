@@ -934,6 +934,33 @@ await check('event board: the held switch drops the reports the reader does not 
   assert(source.includes('positions.size'), 'the chip only appears once a position exists');
 });
 
+await check('brief: an action idea says whether it lands on a position you hold', async () => {
+  const rows = [
+    { symbol: 'NVDA', market: 'US', quote: { price: 100, changePct: 1.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+    { symbol: 'AAPL', market: 'US', quote: { price: 200, changePct: -0.4, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+    { symbol: 'MSFT', market: 'US', quote: { price: 300, changePct: 0.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+  ];
+  const costs = { 'US:NVDA': { price: 80, shares: 10 }, 'US:MSFT': { price: 300, shares: 0 } };
+  const held = internals.heldSymbols(rows, costs);
+  assert(held instanceof Set, 'the helper returns a plain set of tickers');
+  assert(held.has('NVDA'), 'a name with a cost basis is held');
+  // Zero shares is a placeholder, not a position: it must not turn every idea
+  // about that ticker into a holding instruction.
+  assert(!held.has('MSFT'), 'zero shares is not a position');
+  assert(!held.has('AAPL'), 'an unpriced name is not a position');
+  assert(internals.heldSymbols([], null).size === 0, 'no rows means nothing held');
+  const zh = internals.makeT('zh');
+  assert(zh('Held') === '持仓', 'the marker localises');
+  assert(
+    zh('This idea concerns a position you hold') === '这条建议针对你已经持有的仓位',
+    'the tooltip explains the marker',
+  );
+  const source = String(internals.BriefCard);
+  assert(source.includes('tm-brief__hold'), 'the marker has its own style hook');
+  assert(source.includes('held.has(lead[1])'), 'the marker is keyed to the leading ticker');
+  assert(String(internals.CSS).includes('.tm-brief__hold'), 'the marker is styled');
+});
+
 await check('extended hours: a pre or post print rides the row and the detail header', async () => {
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');
