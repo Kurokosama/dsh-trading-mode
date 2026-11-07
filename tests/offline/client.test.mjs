@@ -531,6 +531,21 @@ await check('ex-dividend day: a UTC calendar date, never shifted into the previo
   return 'UTC date + label + countdown rules hold';
 });
 
+await check('exchange closures: half days are dated, and the card localises', async () => {
+  const zh = internals.makeT('zh');
+  const en = internals.makeT('en');
+  assert(internals.CSS.includes('.tm-events__row--holiday'), 'the closure rows ship their CSS');
+  assert(String(en('Exchange closures')) === 'Exchange closures', 'English keeps the canonical card title');
+  assert(zh('Exchange closures') === '交易所休市', 'the card title localises');
+  assert(zh('Closed all day') === '全天休市', 'the full-day label localises');
+  // The half-day wording carries the cutoff time, so it must interpolate rather
+  // than print a bare "{close}".
+  const half = zh('Early close {close} ET', { close: '13:00' });
+  assert(half.includes('13:00') && !half.includes('{close}'), `half-day label interpolates (got ${half})`);
+  assert(/[\u4e00-\u9fff]/.test(zh('Half days close at 13:00 ET; orders after that wait for the next session.')), 'the hint localises');
+  return 'closure card CSS + full-day and half-day labels localise';
+});
+
 await check('analyst view: a consensus band, and every rating label localises', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-arb__track') && internals.CSS.includes('.tm-arb__pin'), 'the consensus band ships its CSS');
