@@ -1231,6 +1231,12 @@ await check('watchlist: a tag group folds away and remembers that it did', () =>
   assert(internals.toggleInList(['a', 'b'], 'c').sort().join() === 'a,b,c', 'leaves the rest alone');
   assert(source.includes("'tm-groups-collapsed'"), 'the choice survives a reload');
   assert(source.includes('collapsed.includes(groupLabelOf(item))'), 'a folded bucket stays out of the keyboard walk');
+  assert(zh('Fold all') === '\u6536\u8d77\u5168\u90e8', 'the bulk fold is localised');
+  assert(zh('Unfold all') === '\u5c55\u5f00\u5168\u90e8', 'so is the bulk unfold');
+  assert(zh('Fold every group').includes('\u5206\u7ec4'), 'and its tooltip');
+  assert(source.includes('toggleAllGroups'), 'one click flips every bucket');
+  assert(source.includes('foldable.length > 1'), 'the bulk chip waits for more than one bucket');
+  assert(source.includes('foldable.every((label) => collapsed.includes(label))'), 'the chip reads as whichever state is next');
 });
 
 await check('watchlist: the arrow keys walk the list and stop at neither end', () => {
