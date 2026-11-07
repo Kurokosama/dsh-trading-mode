@@ -576,7 +576,24 @@ async function main() {
     return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
   });
 
-  await check('1.1: a busy tape never crowds out the single-row ideas', () => {
+  await check('1.1: no single name writes the whole brief', () => {
+  const symbols = ['NVDA', 'AAPL', 'MSFT', 'VTI'];
+  const stocks = symbols.map((symbol) => ({
+    symbol,
+    quote: { price: 99.5, changePct: 0.4 },
+    technical: { technical: { high52w: 100, low52w: 70, volumeRatio20d: 2.1, rsi14: 74 } },
+  }));
+  const en = derivedSuggestions(buildBriefInput({ stocks }), 'en');
+  assert.equal(en.length, 5, `the ladder fills five slots, got ${en.length}`);
+  for (const symbol of symbols) {
+    const lines = en.filter((line) => line.includes(symbol));
+    assert(lines.length <= 2, `${symbol} speaks at most twice, got ${lines.length}: ${lines.join(' | ')}`);
+  }
+  assert(en.some((line) => line.includes('VTI')), 'a fourth name still gets a turn');
+  return 'two lines per name at most';
+});
+
+await check('1.1: a busy tape never crowds out the single-row ideas', () => {
   const stocks = ['NVDA', 'AAPL', 'MSFT'].map((symbol) => ({
     symbol,
     tags: ['core'],
