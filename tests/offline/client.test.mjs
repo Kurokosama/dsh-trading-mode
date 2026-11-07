@@ -445,6 +445,20 @@ await check('i18n: makeT localises, interpolates and falls back safely', async (
   return 'ok';
 });
 
+await check('session clock: the US phase follows the New York wall clock', async () => {
+  const { usSessionInfo } = internals;
+  assert(usSessionInfo(null) === null && usSessionInfo(new Date('not a date')) === null, 'non-dates render nothing, never a wrong phase');
+  // 2026-11-06 (Fri) — ET is UTC−5 after the DST end on 2026-11-01.
+  const at = (h, m) => new Date(Date.UTC(2026, 10, 6, h, m));
+  assert(usSessionInfo(at(13, 15)).phase === 'pre', '08:15 ET is pre-market');
+  assert(usSessionInfo(at(14, 29)).phase === 'pre' && usSessionInfo(at(14, 30)).phase === 'open', '09:30 ET opens the regular session');
+  assert(usSessionInfo(at(20, 59)).phase === 'open' && usSessionInfo(at(21, 0)).phase === 'post', '16:00 ET closes the regular session');
+  assert(usSessionInfo(at(21, 30)).phase === 'post' && usSessionInfo(at(1, 0)).phase === 'closed', '20:00 ET ends the after-hours');
+  assert(usSessionInfo(new Date(Date.UTC(2026, 10, 8, 15, 0))).phase === 'closed', 'weekends are always closed');
+  assert(usSessionInfo(at(14, 30)).clock === '09:30', 'the chip clock is the New York time');
+  return 'pre/open/post/closed boundaries all answer from the ET clock';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
