@@ -544,6 +544,33 @@ await check('detail page: dated events arrive in order and the calendar asks for
   return 'near ex-dividend ranks first, past dates stay out, the calendar request names one ticker';
 });
 
+await check('detail page: the day is read against its sector, not only against yesterday', async () => {
+  const zh = internals.makeT('zh')
+  const tile = internals.sectorTileOf
+  // Sector names arrive from the profile with the provider's own casing, so the
+  // lookup tolerates case and spacing: 'Financial services' must still land on
+  // the Financials ETF instead of silently dropping the line.
+  assert(tile({ sector: 'Technology' }).symbol === 'XLK', 'an exact sector hits its ETF')
+  assert(tile({ sector: 'Financial services' }).symbol === 'XLF', 'case and spacing are tolerated')
+  assert(tile({ sector: ' Health Care ' }).symbol === 'XLV', 'a spelled-out variant still maps')
+  assert(tile({ sector: 'Communication Services' }).label === 'Communication services', 'the label doubles as the i18n key')
+  assert(tile({ sector: 'Miscellaneous' }) === null, 'an unknown sector says nothing instead of guessing')
+  assert(tile({}) === null, 'no sector, no line')
+  assert(tile(null) === null, 'no profile, no line')
+  assert(Object.keys(internals.SECTOR_ETF).length === 11, 'one ETF per SPDR sector')
+  // The phrase carries the size of the gap: "ahead" alone does not say whether
+  // it is noise or a real divergence.
+  assert(zh('Ahead of its sector by {gap}', { gap: '1.20pp' }) === '强于板块 1.20pp', 'ahead phrase localises with the size')
+  assert(zh('Behind its sector by {gap}', { gap: '0.90pp' }) === '弱于板块 0.90pp', 'behind phrase localises with the size')
+  assert(zh('In line with its sector') === '与板块同步', 'a flat day is called flat, not zero')
+  const source = String(internals.DetailView)
+  assert(source.includes('tm-rel'), 'the header carries the relative line')
+  assert(source.includes("t('Ahead of its sector by {gap}'"), 'and names the direction')
+  assert(source.includes('sectorTileOf(company)'), 'driven by the profile sector, not a hard-coded ETF')
+  assert(/\.tm-rel \{[^}]*display: flex/.test(internals.CSS), 'the line lays out as one baseline row')
+  assert(/\.tm-rel__gap \{[^}]*tabular-nums/.test(internals.CSS), 'the gap keeps its digits aligned')
+})
+
 await check('analyst card: the mix and the grade changes are read, not just listed', async () => {
   const zh = internals.makeT('zh');
   const day = 86_400_000;
