@@ -1652,7 +1652,8 @@ await check('event board: the held switch drops the reports the reader does not 
   assert(symbols(held) === 'MSFT,macro', `only the held name survives, got ${symbols(held)}`);
   assert(symbols(heldArr) === 'MSFT,macro', 'a plain array works as the held set');
   assert(symbols(nothingHeld) === 'AAPL,MSFT,NVDA,macro', `an empty held set disables the switch, got ${symbols(nothingHeld)}`);
-  assert(held.counts.earnings === 3, 'the chip counts stay board-wide, not filtered');
+  assert(held.counts.earnings === 1 && held.counts.total === 2, 'the chip counts describe the board the reader is looking at');
+  assert(nothingHeld.counts.earnings === 3, 'without the switch the counts go back to the whole window');
   assert(zh('Held only') === '只看持仓', 'the chip localises');
   assert(
     zh('Only the earnings dates of names you hold; market-wide rows stay') === '只保留你持仓股票的财报日，宏观与休市仍然显示',
@@ -1663,6 +1664,42 @@ await check('event board: the held switch drops the reports the reader does not 
   assert(source.includes("t('Held only')"), 'the chip is part of the board');
   assert(source.includes('positions.size'), 'the chip only appears once a position exists');
   assert(source.split("key: 'held'").length === 2, `the held chip must render once, got ${source.split("key: 'held'").length - 1}`);
+});
+
+await check('event board: the major scope keeps what moves the index and what is owned', async () => {
+  const merge = internals.mergeEventRows;
+  // The seed list is spelled out in one place and tests read it, so a renamed
+  // ticker cannot silently become "too small for the board".
+  assert(internals.MEGA_CAPS.includes('AAPL') && internals.MEGA_CAPS.includes('TSM'), 'the mega-cap list is seeded');
+  const payload = {
+    today: '2026-11-09',
+    bySymbol: {
+      AAPL: { date: '2026-11-12' },
+      SMCI: { date: '2026-11-12' },
+      GOOGL: { date: '2026-11-13' },
+    },
+    macro: [{ kind: 'cpi', date: '2026-11-11', time: '08:30', ref: 'October CPI', days: 2 }],
+    closures: [],
+    expiries: [],
+  };
+  const symbols = (result) => result.rows.map((row) => row.symbol || row.type).sort().join(',');
+  const all = merge(payload, { days: 30, scope: 'all' });
+  const major = merge(payload, { days: 30, scope: 'major', held: [new Set(['SMCI'])][0] });
+  const dropped = merge(payload, { days: 30, scope: 'major', held: [] });
+  const custom = merge(payload, { days: 30, scope: 'major', major: new Set(['SMCI']), held: [] });
+  const defaults = merge(payload, { days: 30 });
+  assert(symbols(all) === 'AAPL,GOOGL,SMCI,macro', `the full board keeps everything, got ${symbols(all)}`);
+  assert(symbols(major) === 'AAPL,GOOGL,SMCI,macro', `a held minor survives the major scope, got ${symbols(major)}`);
+  assert(symbols(dropped) === 'AAPL,GOOGL,macro', `an unheld minor does not, got ${symbols(dropped)}`);
+  assert(symbols(custom) === 'SMCI,macro', `the seed list can be replaced by the caller, got ${symbols(custom)}`);
+  assert(symbols(defaults) === 'AAPL,GOOGL,SMCI,macro', `callers without a scope still get everything, got ${symbols(defaults)}`);
+  assert(major.counts.earnings === 3 && dropped.counts.earnings === 2, 'the counts follow the filtered board');
+  const zh = internals.makeT('zh');
+  assert(zh('Major') === '重点' && zh('Everything') === '全部', 'the two reading modes localise');
+  const source = String(internals.EventBoard);
+  assert(source.includes('tm-events-scope'), 'the scope is remembered between visits');
+  assert(source.includes("t('Major')") && source.includes("t('Everything')"), 'both chips render');
+  assert(internals.CSS.includes('.tm-ev__next'), 'the next-up strip stays styled');
 });
 
 await check('event board: the rows leave as an .ics file the system calendar can import', async () => {
