@@ -2599,6 +2599,54 @@ await check('brief: the local cost basis adds its own lines, and only above a th
   assert(t('Your positions (local)') === '你的持仓（本地）', 'the block is labelled in zh');
 });
 
+await check('notes: a print inside the window names the position and its weight', () => {
+  const en = internals.makeT('en');
+  const zh = internals.makeT('zh');
+  const rows = [
+    { symbol: 'NVDA', market: 'US', quote: { price: 180, currency: 'USD' } },
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, currency: 'USD' } },
+    { symbol: 'MSFT', market: 'US', quote: { price: 400, currency: 'USD' } },
+    { symbol: 'MICR', market: 'US', quote: { price: 10, currency: 'USD' } },
+  ];
+  const costs = {
+    'US:NVDA': { price: 170, shares: 10 },
+    'US:AAPL': { price: 200, shares: 5 },
+    'US:MSFT': { price: 390, shares: 2 },
+    'US:MICR': { price: 10, shares: 1 },
+  };
+  // Values: NVDA 1800, AAPL 1050, MSFT 800, MICR 10 → a 3660 book.
+  const calendar = {
+    today: '2026-11-07',
+    bySymbol: {
+      NVDA: { date: '2026-11-09' },
+      AAPL: { date: '2026-11-08' },
+      MSFT: { date: '2026-12-01' },
+      MICR: { date: '2026-11-08' },
+    },
+  };
+  const plain = internals.positionNotes(rows, costs, en);
+  const notes = internals.positionNotes(rows, costs, en, calendar);
+  const dated = notes.filter((line) => line.includes('prints '));
+  assert(plain.filter((line) => line.includes('prints ')).length === 0, 'no calendar, no date line');
+  assert(dated.length === 2, `only the two largest near prints are said (got ${dated.length}: ${dated.join(' | ')})`);
+  // 1800 of 3660 = 49% of the book, two days out.
+  assert(dated[0].includes('NVDA') && dated[0].includes('2 days') && dated[0].includes('49%'), `the biggest position leads (got ${dated[0]})`);
+  assert(dated[0].includes('USD'), 'the currency is named, not implied');
+  // One day out reads as tomorrow, not as "1 days".
+  assert(dated[1].includes('AAPL') && dated[1].includes('prints tomorrow') && !dated[1].includes('1 days'), `the nearest print is worded plainly (got ${dated[1]})`);
+  assert(!dated.some((line) => line.includes('MSFT')), 'a print outside the window is not a warning');
+  assert(!notes.some((line) => line.includes('MICR')), '10 dollars is not a position worth planning around');
+  const past = internals.positionNotes(rows, costs, en, { ...calendar, bySymbol: { NVDA: { date: '2026-11-05' } } });
+  assert(!past.some((line) => line.includes('prints ')), 'a print that already happened says nothing new');
+  const zhNotes = internals.positionNotes(rows, costs, zh, calendar);
+  const zhDated = zhNotes.filter((line) => line.includes('出财报'));
+  assert(zhDated.length === 2 && zhDated[0].includes('还有 2 天') && zhDated[1].includes('明天出财报'), `the Chinese lines carry the same facts (got ${zhDated.join(' | ')})`);
+  assert(zhDated[0].includes('49%'), 'the weight is stated in Chinese too');
+  assert(String(internals.positionNotes).includes('eventDaysOf(row, earnings)'), 'the date comes from the same helper the rows use');
+  assert(String(internals.HomeView).includes("apiGet('/earnings?days=14'"), 'the notes read the calendar the rows already read');
+  assert(String(internals.HomeView).includes('positionNotes(rows, costs, t, notesCalendar.data)'), 'the home page hands it over');
+});
+
 await check('news: the home card speaks for the holdings, not the whole market', () => {
   const zh = internals.makeT('zh')
   assert(internals.CSS.includes('.tm-news__sym'), 'the holding a headline belongs to gets its own column')
