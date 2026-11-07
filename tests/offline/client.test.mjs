@@ -793,6 +793,41 @@ await check('positions: the list sorts by open P&L, and a row that is no positio
   return 'open P&L sorts per row and unheld rows sink rather than rank as flat';
 });
 
+await check('sizing: shares follow the money at risk, and a stop above the price buys nothing', () => {
+  const I = internals
+  assert(typeof I.sizeFor === 'function' && typeof I.suggestStop === 'function', 'sizeFor and suggestStop exported')
+  const css = I.CSS
+  assert(css.includes('.tm-sizing__in') && css.includes('.tm-sizing__out'), 'sizing styles present')
+  const t = I.makeT('zh')
+  assert(t('Position & risk') === '仓位与风险', 'card title localised')
+  assert(t('shares to buy') === '可买股数', 'shares label localised')
+  assert(t('stop price') === '止损价', 'stop label localised')
+
+  // $10,000 at 1% is $100 of risk; a $5 stop distance buys 20 shares.
+  const plan = I.sizeFor(50, 45, 10000, 1)
+  assert(plan && plan.shares === 20, `expected 20 shares, got ${plan && plan.shares}`)
+  assert(plan.value === 1000, `expected $1000 tied up, got ${plan.value}`)
+  assert(plan.sharePct === 10, `expected 10% of the account, got ${plan.sharePct}`)
+  assert(plan.stopPct === 10, `expected a 10% stop distance, got ${plan.stopPct}`)
+
+  // A stop at or above the price is not a stop; nonsense inputs answer null
+  // rather than a zero that would read like "buy nothing".
+  assert(I.sizeFor(50, 50, 10000, 1) === null, 'stop at the price is refused')
+  assert(I.sizeFor(50, 55, 10000, 1) === null, 'stop above the price is refused')
+  assert(I.sizeFor(50, 45, 0, 1) === null, 'no account, no plan')
+  assert(I.sizeFor(50, 45, 10000, 0) === null, 'no risk budget, no plan')
+  assert(I.sizeFor(null, 45, 10000, 1) === null, 'no price, no plan')
+  // A stop too far away for the budget floors at zero shares, not at one.
+  const tight = I.sizeFor(50, 1, 100, 1)
+  assert(tight && tight.shares === 0 && tight.value === 0, 'a budget that cannot buy one share says zero')
+
+  // Two average ranges when the range is there, otherwise the 20-day line.
+  assert(I.suggestStop(100, { atr14: 2.5 }) === 95, 'two ATRs below the print')
+  assert(I.suggestStop(100, { ma20: 96 }) === 96, 'the 20-day line when there is no range')
+  assert(I.suggestStop(100, { ma20: 104 }) === null, 'a 20-day line above the price is no stop')
+  assert(I.suggestStop(null, { atr14: 2 }) === null, 'no price, no suggestion')
+})
+
 await check('brief: the local cost basis adds its own lines, and only above a threshold', () => {
   const t = internals.makeT('zh');
   const rows = [
