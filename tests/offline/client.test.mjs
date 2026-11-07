@@ -1211,6 +1211,46 @@ await check('watchlist: the arrow keys walk the list and stop at neither end', (
     'the shortcut sheet says the arrows also walk the list')
 })
 
+await check('brief: the whole brief copies as ordered text, and empty sections stay out', () => {
+  const t = internals.makeT('en');
+  const full = internals.briefLines(
+    {
+      headline: 'Flat tape, one name carrying the day',
+      generatedAt: new Date('2026-11-07T01:40:00Z').toISOString(),
+      stocksTracked: 11,
+      upCount: 7,
+      downCount: 3,
+      strongestMover: 'NVDA +4.2%',
+      largestDecline: 'TSLA -3.1%',
+      unusualVolume: ['VOO 1.8x'],
+      keyObservations: ['NVDA leads breadth', 'Breadth is thin'],
+      suggestions: ['Wait for the print', 'Trim into strength'],
+    },
+    ['AAPL +16.7% against your $180.00 cost'],
+    t,
+  );
+  assert(full[0].startsWith('AI Watchlist Brief'), 'the paste is labelled, got ' + full[0]);
+  assert(full[1] === 'Flat tape, one name carrying the day', 'the headline comes second');
+  assert(full.includes('Stocks tracked 11 \u00b7 Up 7 \u00b7 Down 3'), 'counts share one line, got ' + full[2]);
+  const movers = full.find((l) => l.includes('Strongest mover:')) || '';
+  assert(movers.includes('NVDA +4.2%'), 'the best row keeps its label, got ' + movers);
+  assert(movers.includes('Largest decline: TSLA -3.1%'), 'so does the worst, got ' + movers);
+  const at = (needle) => full.findIndex((l) => l.startsWith(needle));
+  assert(at('Unusual volume:') > 0 && at('Key observations:') > at('Unusual volume:'), 'sections keep the reading order');
+  assert(at('Action ideas:') > at('Key observations:'), 'the checklist follows the observations');
+  assert(at('Your positions (local):') > at('Action ideas:'), 'the local lines close the paste');
+  assert(full.includes('1. Wait for the print'), 'actions are numbered');
+  assert(full[full.length - 1] === '- AAPL +16.7% against your $180.00 cost', 'the last line is the position note');
+
+  // A brief with nothing but a headline must not emit empty headers.
+  const thin = internals.briefLines({ headline: 'Quiet' }, null, t);
+  assert(thin.length === 2, 'a thin brief stays two lines, got ' + thin.length);
+  assert(!thin.some((l) => l.includes('Action ideas')), 'no empty sections are pasted');
+  assert(internals.briefLines(null, null, t).length === 0, 'no brief, no text');
+  const zh = internals.makeT('zh');
+  assert(internals.briefLines({ headline: 'x' }, ['y'], zh).includes('你的持仓（本地）:'), 'the local section is localised');
+});
+
 await check('news: headlines are dated, linked, and localised', () => {
   const I = internals
   const CSS = I.CSS
