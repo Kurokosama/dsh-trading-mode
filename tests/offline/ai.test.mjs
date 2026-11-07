@@ -576,6 +576,34 @@ async function main() {
     return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
   });
 
+  await check('1.1: a defensive tape frames every row before the row-level ideas', () => {
+    const stocks = [{ symbol: 'AAPL', quote: { price: 210, changePct: -0.4 } }];
+    const tape = [
+      { symbol: '^GSPC', name: 'S&P 500', price: 6782.44, changePct: -1.62 },
+      { symbol: '^VIX', name: 'VIX', price: 25.64, changePct: 3.1 },
+    ];
+    const realised = buildBriefInput({ stocks, tape });
+    assert.equal(realised.tape.length, 2, 'both index rows ride along');
+    assert.equal(realised.tape[0].changePct, -1.62, 'the day change is rounded, not dropped');
+    const en = derivedSuggestions(realised, 'en');
+    assert(en[0].includes('defensive'), `the tape leads, got ${en[0]}`);
+    assert(en[0].includes('S&P 500 \u22121.6%'), `the move is signed, got ${en[0]}`);
+    assert(en[0].includes('VIX 25.6'), `an elevated VIX is named, got ${en[0]}`);
+    const zh = derivedSuggestions(realised, 'zh');
+    assert(zh[0].includes('大盘偏弱'), `zh tone, got ${zh[0]}`);
+    assert(zh[0].includes('VIX 25.6'), `zh VIX, got ${zh[0]}`);
+    // A quiet session and a calm VIX say nothing at all.
+    const flat = derivedSuggestions(buildBriefInput({ stocks, tape: [{ symbol: '^GSPC', changePct: 0.3 }] }), 'en');
+    assert(flat.every((line) => !line.includes('The tape is')), 'a quiet tape is not a headline');
+    const calm = derivedSuggestions(
+      buildBriefInput({ stocks, tape: [{ symbol: '^GSPC', changePct: -1.2 }, { symbol: '^VIX', price: 15.2 }] }),
+      'en',
+    );
+    assert(calm[0].includes('defensive') && !calm[0].includes('VIX'), `a calm VIX stays out, got ${calm[0]}`);
+    const none = derivedSuggestions(buildBriefInput({ stocks }), 'en');
+    assert(none.every((line) => !line.includes('The tape is')), 'no tape, no line');
+  });
+
   await check('1.1: a shortened trading week takes the board-wide slot in the brief', () => {
     const realised = buildBriefInput({
       stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
