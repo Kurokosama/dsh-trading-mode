@@ -304,6 +304,32 @@ await suite.check('1.1: PATCH /watchlist/:symbol accepts a tags set (1.0.x)', as
   return 'tags PATCH routes to setTags';
 });
 
+await suite.check('1.1: POST /watchlist/import restores rows, tags and favourites', async () => {
+  const { api } = buildApi();
+  const imported = await call(api, {
+    method: 'POST',
+    url: '/api/trading/watchlist/import',
+    body: { items: [{ symbol: 'AAPL', tags: ['核心仓'], isFavorite: true }, { symbol: 'MSFT' }, { symbol: '' }] },
+  });
+  assert.equal(imported.status, 200);
+  const value = imported.payload.value;
+  assert.equal(value.added, 2);
+  assert.equal(value.failed.length, 1);
+  assert.equal(value.failed[0].reason, 'missing "symbol"');
+
+  const listing = await call(api, { url: '/api/trading/watchlist' });
+  assert.equal(listing.status, 200);
+  const rows = listing.payload.value.items;
+  assert.equal(rows.length, 2);
+  const aapl = rows.find((row) => row.symbol === 'AAPL');
+  assert.ok(aapl.isFavorite, 'the favourite flag survives the import');
+  assert.deepEqual(aapl.tags, ['核心仓']);
+
+  const bad = await call(api, { method: 'POST', url: '/api/trading/watchlist/import', body: { items: [] } });
+  assert.equal(bad.status, 400);
+  return 'import restores rows and reports failures';
+});
+
 await suite.check('1.1: GET /quotes fans out per-symbol and isolates failures', async () => {
   const service = fakeService();
   const asked = [];
