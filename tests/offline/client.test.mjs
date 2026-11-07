@@ -433,6 +433,31 @@ await check('notes: the ticker inside a sentence is a link, and only a real tick
   return 'note parts ok';
 });
 
+await check('notes: a huge move on a tiny position is not a decision', async () => {
+  const t = internals.makeT('en');
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 110, currency: 'USD' } },
+    { symbol: 'MSFT', market: 'US', quote: { price: 300, currency: 'USD' } },
+  ];
+  const costs = {
+    'US:AAPL': { price: 100, shares: 1000 },
+    'US:MSFT': { price: 100, shares: 1 },
+  };
+  const notes = internals.positionNotes(rows, costs, t);
+  const first = notes[0] || '';
+  assert(first.includes('AAPL'), `the note sizes by money, so the big position is named (got "${first}")`);
+  assert(!first.includes('MSFT'), 'a 1.4% position does not earn a decision sentence');
+  const all = notes.join(' | ');
+  assert(!/MSFT/.test(all) || !all.includes('+200.0%'), 'the 200% on one share is not reported as a decision');
+  const single = internals.positionNotes(
+    [{ symbol: 'MSFT', market: 'US', quote: { price: 300, currency: 'USD' } }],
+    { 'US:MSFT': { price: 100, shares: 1 } },
+    t,
+  );
+  assert(single.length === 1 && single[0].includes('MSFT'), 'a one-name book still hears about its own move');
+  return 'money-sized note ok';
+});
+
 await check('home: the cost-basis warnings are visible before a brief is written', async () => {
   const { renderToStaticMarkup } = await import('react-dom/server');
   const React = (await import('react')).default;
