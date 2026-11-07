@@ -2552,6 +2552,24 @@ await check('theme: every panel surface is painted opaque from the scheme palett
   return `${used.size} alias tokens mapped, ${css.length} CSS chars`;
 });
 
+await check('watchlist: a held row says what today did to it, not only where it sits against cost', async () => {
+  const row = (quote, cost) => ({ symbol: 'AAPL', market: 'US', isFavorite: false, quote, cost });
+  const quote = { price: 210, change: 10, changePct: 5, timestamp: '2026-11-07T15:30:00Z', currency: 'USD' };
+  const item = { symbol: 'AAPL', market: 'US', isFavorite: false, quote };
+  const held = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, cost: { price: 200, shares: 10 } }));
+  assert(held.includes('+100.00'), `the day's dollars are shown, got ${held.slice(0, 400)}`);
+  assert(held.includes('tm-row__flag--today'), 'and carry their own hook');
+  const flat = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, cost: { price: 200, shares: 10, } }));
+  assert(flat.length > 0, 'a row still renders');
+  const tiny = renderToString(h(internals.WatchRow, { item: { symbol: 'MSFT', market: 'US', isFavorite: false, quote: { price: 100, change: 0.1, changePct: 0.1, timestamp: '2026-11-07T15:30:00Z' } }, index: 0, count: 1, cost: { price: 10, shares: 1 } }));
+  assert(!tiny.includes('tm-row__flag--today'), 'a sub-dollar day stays off the row');
+  const unheld = renderToString(h(internals.WatchRow, { item: { symbol: 'NVDA', market: 'US', isFavorite: false, quote }, index: 0, count: 1 }));
+  assert(!unheld.includes('tm-row__flag--today'), 'no cost basis, no day claim');
+  assert(internals.ZH['Today, this position: {amount}'] === '这只今天：{amount}', 'the tooltip is localised');
+  assert(internals.CSS.includes('.tm-row__flag--today'), 'the chip needs its own style hook');
+  return 'row day chip ok';
+});
+
 await check('watchlist: a position missing from the list is called out, not silently dropped', async () => {
   const orphans = internals.orphanHoldings;
   const rows = [{ symbol: 'AAPL', market: 'US', quote: { price: 210 } }]
