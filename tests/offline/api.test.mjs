@@ -396,6 +396,11 @@ await suite.check('1.1: GET /closures answers the NYSE calendar without touching
   assert.equal(empty.status, 200);
   assert.deepEqual(empty.payload.value.closures, [], 'a quiet window is an empty list, not an error');
 
+  assert.equal(value.expiries.length, 2, 'the same window carries its option expiries');
+  assert.equal(value.expiries[0].date, '2026-11-20', 'the November expiry is the third Friday');
+  assert.equal(value.expiries[1].quarterly, true, 'December is a quarterly expiry');
+  assert.ok(/third Friday/i.test(String(value.optionExpiryRule)), 'the rule travels with the rows so the UI can explain it');
+
   const post = await call(api, { method: 'POST', url: '/api/trading/closures' });
   assert.equal(post.status, 400, 'the calendar is read-only');
   return `/closures: ${value.closures.length} rows, empty windows tolerated, writes refused`;

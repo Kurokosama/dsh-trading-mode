@@ -535,8 +535,14 @@ await check('exchange closures: half days are dated, and the card localises', as
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');
   assert(internals.CSS.includes('.tm-events__row--holiday'), 'the closure rows ship their CSS');
-  assert(String(en('Exchange closures')) === 'Exchange closures', 'English keeps the canonical card title');
-  assert(zh('Exchange closures') === '交易所休市', 'the card title localises');
+  assert(String(en('Exchange calendar')) === 'Exchange calendar', 'English keeps the canonical card title');
+  assert(zh('Exchange calendar') === '交易所日历', 'the card title localises');
+  // The same card carries the monthly expiry, so it is a calendar rather than a
+  // list of closures; the expiry rows read as volatility dates, not half days.
+  assert(internals.CSS.includes('.tm-events__row--opex'), 'the expiry rows ship their own CSS');
+  assert(zh('Monthly options expiry') === '期权到期日', 'the expiry label localises');
+  assert(zh('quarterly') === '季度合约', 'the quarterly marker localises');
+  assert(/[\u4e00-\u9fff]/.test(zh('Options expire at the close. Volume and index rebalancing usually cluster on that day.')), 'the expiry hint localises');
   assert(zh('Closed all day') === '全天休市', 'the full-day label localises');
   // The half-day wording carries the cutoff time, so it must interpolate rather
   // than print a bare "{close}".

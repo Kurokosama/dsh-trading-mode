@@ -17,10 +17,13 @@ import {
   CLOSURES_VERIFIED_ON,
   EARLY_CLOSE_TIME,
   NYSE_CLOSURES,
+  OPTION_EXPIRY_RULE,
   closureOn,
   closuresAreSane,
   closuresBetween,
   nextClosure,
+  optionExpiryBetween,
+  optionExpiryIn,
 } from '../../lib/trading/holidays.js';
 import { marketStatus } from '../../lib/trading/sessions.js';
 import { createSuite, exitCodeFor } from './harness.mjs';
@@ -99,6 +102,29 @@ await suite.check('an early close shortens the session instead of closing the da
   assert.equal(normal.session, 'regular');
   // Before the open the early close changes nothing.
   assert.equal(marketStatus('US', utc('2026-11-27T12:00:00Z')).session, 'pre');
+});
+
+await suite.check('the monthly expiry lands on the third Friday, and steps back when the exchange is shut', () => {
+  // November 2026: Fridays are 6, 13, 20, 27 — the third is the 20th.
+  assert.equal(optionExpiryIn(2026, 11).date, '2026-11-20');
+  assert.equal(optionExpiryIn(2026, 11).quarterly, false);
+  // June 2026: the third Friday is the 19th, which is Juneteenth — the CBOE
+  // settles the day before, and the row has to say it moved.
+  const june = optionExpiryIn(2026, 6);
+  assert.equal(june.date, '2026-06-18');
+  assert.equal(june.shifted, true);
+  assert.equal(june.quarterly, true);
+  // December is a quarterly month that needs no shift.
+  assert.equal(optionExpiryIn(2026, 12).date, '2026-12-18');
+  assert.equal(optionExpiryIn(2026, 12).shifted, false);
+  assert.equal(typeof OPTION_EXPIRY_RULE, 'string');
+  // The window is forward from `from`, nearest first, each row carrying its offset.
+  const rows = optionExpiryBetween('2026-11-06', 45);
+  assert.equal(rows.map((row) => row.date).join(','), '2026-11-20,2026-12-18');
+  assert.equal(rows[0].days, 14);
+  assert.equal(rows[1].days, 42);
+  assert.equal(optionExpiryBetween('2026-11-21', 10).length, 0, 'a window between two expiries is empty');
+  assert.equal(optionExpiryBetween('nonsense', 10).length, 0, 'a bad date yields no rows');
 });
 
 process.exit(exitCodeFor(suite.finish()));
