@@ -19,6 +19,7 @@ import {
   buildBriefInput,
   buildStockInput,
   buildUserMessage,
+  derivedSuggestions,
   normalizeBrief,
   qualityFor,
   recencyOf,
@@ -446,6 +447,36 @@ async function main() {
     assert.equal(input.dataAvailability.historyGrade, 'partial');
     assert.ok(input.dataAvailability.quote);
     return 'dataRecency + technical.quality present';
+  });
+
+  await check('brief suggestions: an imminent earnings print outranks technical reads (1.0.x)', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'AAPL', quote: { price: 342.37 } },
+        { symbol: 'MSFT', quote: { price: 300 } },
+      ],
+      earnings: { today: '2026-11-06', bySymbol: { AAPL: { date: '2026-11-09', session: 'am' } } },
+    });
+    assert.deepEqual(realised.stocks[0], {
+      ...realised.stocks[0],
+      earningsDate: '2026-11-09',
+      earningsSession: 'am',
+      earningsInDays: 3,
+    }, 'the mapped row carries the calendar date, session and a day count');
+    assert.deepEqual(
+      { earningsDate: realised.stocks[1].earningsDate, earningsInDays: realised.stocks[1].earningsInDays },
+      { earningsDate: null, earningsInDays: null },
+      'a stock outside the calendar stays null instead of zero',
+    );
+    assert.equal(realised.stocks[0].earningsInDays, 3, 'three calendar days between 11-06 and 11-09');
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(zh.some((line) => /AAPL/.test(line) && /出财报/.test(line)), 'zh idea mentions the print');
+    assert.ok(zh[0].includes('AAPL'), 'earnings risk is the first derived idea, ahead of technicals');
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(en.some((line) => /AAPL/.test(line) && /in 3 days/.test(line)), 'en phrasing carries the day count');
+    const past = derivedSuggestions({ stocks: [{ symbol: 'VTI', price: 400, changePct: 0.2, earningsInDays: -2 }] }, 'en');
+    assert.ok(!past.some((line) => /VTI reports/.test(line)), 'a past Friday date must not surface as future risk');
+    return 'earnings-soon idea rides the brief input and outranks the technical ladder';
   });
 
   await check('buildBriefInput ages the whole brief by its oldest row', () => {
