@@ -532,6 +532,12 @@ await check('detail page: dated events arrive in order and the calendar asks for
   assert(zh('Shares bought on or after this date do not carry the dividend, and the price opens lower by roughly the payment.').includes('除息日'), 'the tooltip localises');
   assert(internals.relativeDayOf(day(2026, 10, 1), zh) === '', 'a past day answers nothing even in zh');
   assert(internals.relativeDayOf(day(2026, 11, 9), zh) === '2 天后', 'the countdown reads from the date, not the render');
+  // Render the strip for real: a text-walk cannot catch a missing class or an
+  // element the browser would collapse, and this block sits in the page flow.
+  const html = renderToString(h('div', null, internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA', zh)));
+  assert(html.includes('tm-earn') && html.includes('tm-earn__label'), 'the rows keep the strip structure');
+  assert(html.indexOf('除息日') >= 0 && html.indexOf('除息日') < html.indexOf('下次财报'), 'the rendered HTML keeps the arrival order');
+  assert(html.includes('想拿这次分红要在这天之前持有'), 'the rule survives rendering');
   // The request must name the ticker: the route otherwise ships the whole
   // market's calendar for one stock.
   assert(String(internals.DetailView).includes('/earnings?days=21&symbol='), 'the detail page filters the calendar server-side');
