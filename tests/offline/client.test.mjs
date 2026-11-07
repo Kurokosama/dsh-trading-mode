@@ -927,6 +927,38 @@ await check('board pulse: breadth counts only rows with a real day change', asyn
   return 'pulse counts breadth and the single steepest move'
 })
 
+await check('benchmark: the board is compared to the index as a plain average', async () => {
+  const I = internals
+  const rows = [
+    { symbol: 'AAPL', quote: { changePct: 1.5 } },
+    { symbol: 'NVDA', quote: { changePct: -0.5 } },
+    { symbol: 'SPY', quote: { price: 700 } },
+  ]
+  const items = [
+    { symbol: '^GSPC', name: 'S&P 500', quote: { changePct: 0.25 } },
+    { symbol: '^IXIC', name: 'Nasdaq', quote: { changePct: 0.9 } },
+  ]
+  const vs = I.boardVsIndex(rows, items)
+  assert(vs && vs.n === 2, 'rows with no day change stay out of the average')
+  assert(Math.abs(vs.board - 0.5) < 1e-9, 'the board is an equal-weight average, not a sum')
+  assert(vs.indexPct === 0.25, 'only the index asked for is read')
+  assert(Math.abs(vs.gap - 0.25) < 1e-9, 'the gap is the board minus the index')
+  assert(vs.indexName === 'S&P 500', 'the comparison names the index it used')
+  assert(I.boardVsIndex(rows, [{ symbol: '^IXIC', quote: { changePct: 1 } }]) === null, 'no S&P means no comparison')
+  assert(I.boardVsIndex([], items) === null, 'an empty board has nothing to compare')
+  assert(I.boardVsIndex(null, null) === null, 'a missing payload cannot throw')
+  assert(I.boardVsIndex(rows, items, '^IXIC').gap < 0, 'a negative gap says the board lagged')
+  const zh = internals.makeT('zh')
+  assert(zh('Watchlist equal-weight') === '自选等权', 'the label localises')
+  assert(zh('{n} names', { n: 8 }) === '8 只', 'the count localises')
+  assert(zh('Gap') === '相差', 'the gap label stays arithmetic, not a verdict')
+  assert(/\.tm-vs\b/.test(I.CSS) && /\.tm-vs__meta/.test(I.CSS), 'the strip ships its own styles')
+  const source = String(I.MarketOverview)
+  assert(source.includes('tm-vs'), 'the overview draws the line')
+  assert(source.includes("market === 'US'"), 'only the US tab compares against the S&P')
+  return 'equal-weight board next to the S&P'
+})
+
 await check('after hours: the board only lists prints that actually moved', async () => {
   const I = internals
   const movers = I.afterHoursMovers([
