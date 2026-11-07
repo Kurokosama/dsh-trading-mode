@@ -225,9 +225,10 @@ await check('apply registers the sidebar row and its main panel', async () => {
   assert(typeof row.options.label === 'function', 'the row label must be lazy so it follows the language');
   assert(page.options.key === 'trading-mode', 'the main panel key must be the sidebar row id');
   assert(!('id' in page.options), 'keyed main panels register a key, not an id');
+  assert(row.injectKey === 'sidebar.panellist', 'the row belongs to the sidebar slot');
   assert(
-    row.injectKey === 'sidebar.panellist' && page.injectKey === 'sidebar.panellist',
-    'the row and its page must be gated on the same sidebar slot',
+    page.injectKey === null,
+    'the page must register outside the sidebar injection: a late or missing sidebar slot must not leave the host with a selectable id and nothing to draw',
   );
   assert(
     registry.every((entry) => entry.key !== 'conversation.session.header.actions'),

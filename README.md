@@ -120,6 +120,8 @@ plugin_manager({ action: "remove_bundle", target: "dsh-trading-mode" })
 
 ## 开始使用
 
+主面板与侧栏入口分开注册：侧栏槽位缺失时页面照样能渲染。
+
 如果宿主给面板的位置高度是 0，页面会在最上层显示一条固定提示，而不是留一片空白。
 
 简报生成后可以复制成文字，也可以直接存成 `brief-YYYY-MM-DD.txt`：剪贴板会被下一次复制覆盖，文件不会。
