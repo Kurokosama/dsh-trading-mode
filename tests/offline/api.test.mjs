@@ -111,6 +111,12 @@ function memoryWatchlist() {
       if (item) item.isFavorite = Boolean(value);
       return { symbol, isFavorite: Boolean(value), present: Boolean(item) };
     },
+    async setTags(userId, symbol, tags) {
+      calls.push({ op: 'setTags', userId, symbol, tags });
+      const item = bucket(userId).get(symbol);
+      if (item) item.tags = Array.isArray(tags) ? tags : [];
+      return { symbol, tags: Array.isArray(tags) ? tags : [], present: Boolean(item) };
+    },
     async reorder(userId, order) {
       calls.push({ op: 'reorder', userId, order });
       return Array.isArray(order) ? order : [];
@@ -276,6 +282,25 @@ await suite.check('every watchlist write acts as the caller, not as the body say
   assert.ok(watchlist.calls.some((entry) => entry.op === 'remove'));
   assert.ok(watchlist.calls.some((entry) => entry.op === 'reorder'));
   return `${watchlist.calls.length} store calls, all as local-1`;
+});
+
+await suite.check('1.1: PATCH /watchlist/:symbol accepts a tags set (1.0.x)', async () => {
+  const { api, watchlist } = buildApi();
+  const setup = await call(api, { method: 'POST', url: '/api/trading/watchlist', body: { symbol: 'AAPL' } });
+  assert.equal(setup.status, 200);
+
+  const tagged = await call(api, { method: 'PATCH', url: '/api/trading/watchlist/AAPL', body: { tags: ['核心仓', 'watch'] } });
+  assert.equal(tagged.status, 200);
+  assert.deepEqual(tagged.payload.value.item.tags, ['核心仓', 'watch']);
+  assert.ok(watchlist.calls.some((entry) => entry.op === 'setTags' && entry.symbol === 'AAPL'));
+
+  const bad = await call(api, { method: 'PATCH', url: '/api/trading/watchlist/AAPL', body: { tags: 'core' } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.payload.error.code, 'BAD_REQUEST');
+
+  const dying = await call(api, { method: 'PATCH', url: '/api/trading/watchlist/AAPL', body: {} });
+  assert.equal(dying.status, 400, 'neither field answers a clear bad request');
+  return 'tags PATCH routes to setTags';
 });
 
 await suite.check('two identities sharing one store never see each other', async () => {
