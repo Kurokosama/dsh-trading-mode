@@ -8,15 +8,21 @@
 
 可以查报价、看 K 线和技术指标、浏览标的资料，也可以调用 DSH 的 `llm` 服务生成一份基于当前数据快照的分析。
 
+**它不做的事**：不支持下单与券商账户接入，不提供投资建议（详见「当前没有做的功能」一节）。
+
 当前版本为 **0.8.2（Beta）**。实际版本以 `package.json` 为准，也可以通过 `GET /api/trading/health` 查看。
 
 ## 与上游的差异
 
 - **报价涨跌幅**：上游的 Yahoo 请求带了 `fields=regularMarketPrice`，响应被截断后算不出涨跌，整列显示「—」；
   本 fork 去掉该参数并在缺字段时回落到 chart 的 `chartPreviousClose`。
+- **引擎**：市场范围收窄到美股。行情链只剩 `yahoo → stooq`，全量清单只剩 Nasdaq，指数目录改为 7 条美股指数
+  （含罗素 2000 与费城半导体），代码解析只接受美股标的（其余报 `UNSUPPORTED_MARKET`）。
 - **界面**：自选表改成单行 + 固定列宽 + 表头，市场指数改成等高卡片条，AI 简报改成带分节的结构，
   头部状态条改成两行网格；默认主题改为浅色。
-- **范围**：市场切换只留美股。
+- **1.0 轮新增能力**（详见 [CHANGELOG.md](CHANGELOG.md)）：首页事件提醒卡（30 天财报日历）、
+  AI 简报的行动建议/板块语境/加载骨架、自选标签分组与三列排序、CSV/JSON 导入导出、
+  自选热度条与板块温度计、搜索最近记录与本地标签匹配、详情页键盘巡览与 52 周位置条等。
 
 上游修复仍可按需 cherry-pick：`git remote add upstream https://github.com/YuumaKobayashi/dsh-trading-mode.git`。
 
@@ -91,7 +97,6 @@ plugin_manager({ action: "remove_bundle", target: "dsh-trading-mode" })
 面板支持中文和英文（`zh` / `en`），其他语言参数会得到 `400 BAD_REQUEST`。可以在面板头部切换深色和浅色主题；如果宿主提供 `theme` 服务，选择会通过 DSH 的主题偏好保存，否则只在当前会话生效。
 
 行情不是实时推送。正常报价旁会显示 `Updated HH:MM:SS` 和 `Data may be delayed`；使用过期缓存时改为 `Last available data`，不会同时显示两种时间状态。具体时效分为：
-
 | 状态 | 数据年龄 |
 | --- | --- |
 | `fresh` | 不超过 5 分钟 |
@@ -99,7 +104,8 @@ plugin_manager({ action: "remove_bundle", target: "dsh-trading-mode" })
 | `stale` | 不超过 24 小时 |
 | `historical` | 超过 24 小时 |
 
-面板不标注 Live、Real-time 或 Tick-level，也不提供 Level-2 行情。指数点位不代表可交易价格；加密货币使用 USDT 现货报价。
+面板不标注 Live、Real-time 或 Tick-level，也不提供 Level-2 行情。指数点位不代表可交易价格；
+点击指数卡片打开的是最接近的可交易 ETF（例如标普 500 打开 SPY），恐慌指数不提供入口。
 
 ### AI 分析怎么工作
 
@@ -109,35 +115,28 @@ AI 是可选能力。即使宿主没配模型，行情面板仍可以使用；AI
 
 ## 各市场支持情况
 
-这里的“支持”表示已有实测可用的数据路径；“部分支持”通常表示覆盖不完整或缺少备用源；“不保证”表示当前上游在实测网络中经常不可达；“不支持”表示尚未实现。
-
-| 市场 | 报价 | K 线 | 技术指标 | 公司档案 | 全量清单 | 搜索 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 美股 US | 支持 | 支持 | 支持 | 部分支持 | 支持 | 支持 |
-| 港股 HK | 支持 | 支持 | 支持 | 部分支持 | 支持 | 支持 |
-| A 股 CN | 支持 | 支持 | 支持 | 部分支持 | 支持 | 部分支持 |
-| 日股 JP | 支持 | 不保证 | 不保证 | 部分支持 | 不保证 | 部分支持 |
-| 加密货币 CRYPTO | 支持 | 支持 | 支持 | 支持 | 支持 | 支持 |
-
-**日股需要单独说明。** JP 报价可以通过东财和腾讯获取，但目前没有可靠的历史 K 线来源：腾讯东京接口通常只返回一根，东财 `push2his` 在实测环境中会重置连接。因此图表可能只显示少量数据并提示 `partial history`，MA200 等长周期指标也可能无法计算。日股完整标的清单只有东财一个来源，失效时会明确提示不可用。
-
-各市场的数据链路如下：
+本 fork 只支持美股（US）。数据链路与实测结论如下：
 
 | 能力 | 数据来源和限制 |
 | --- | --- |
-| 报价 | US / HK / CN / JP：东财优先，腾讯备用；CRYPTO：Binance、Gate，USDT 现货，7×24 小时 |
-| K 线 | US：东财日/周线，新浪日线备用（分钟线只有东财）；HK：东财、腾讯、Stooq；CN：东财、腾讯、新浪日线；CRYPTO：Binance、Gate 历史分页；JP：不保证 |
-| 公司档案 | US / HK / CN / JP 依赖东财；Yahoo 在实测网络下返回 403。CRYPTO 主要来自 CoinLore，部分小币种使用目录合成档案 |
-| 全量清单 | US：东财 → Nasdaq；HK：东财 → 新浪；CN：新浪 → 东财；JP：东财；CRYPTO：CoinLore → Binance |
-| 搜索 | US / HK / CRYPTO 支持上游搜索或榜单；CN 主要依赖东财 suggest 和本地中文种子目录；JP 主要识别东京代码、中文名，假名和罗马字依赖本地目录补充 |
+| 报价 | Yahoo Finance 优先，Stooq 兜底（Stooq 只出日 K，不能报价） |
+| K 线 | Yahoo 日/周线（1d–1mo 分钟上限约 6 个月），分钟级粒度受上游限制，可能返回 `partial history` |
+| 技术指标 | 插件本地计算（SMA/EMA/RSI/MACD/ATR 枢轴等），依赖 K 线长度，长周期指标在历史不足时省略 |
+| 公司档案 | 仅 Yahoo 一条链路，失败时该 tile 显示错误码而不是合成档案 |
+| 全量清单 | Nasdaq 官方清单（NASDAQ / NYSE / AMEX 全部板块），单失败自动回落 US-ALL 大表 |
+| 财报日历 | Nasdaq 日历接口（非浏览器 User-Agent 会被拒，请求统一使用 `HTTP_POLICY.userAgent`），按日缓存 6 小时 |
+| 基本面 | SEC EDGAR `companyfacts`（免密钥，`data.sec.gov`），ETF/基金无 XBRL 数据，不显示该卡 |
+| 搜索 | 目录搜索 + 目录别名（中文别名、ETF 全称）；上线后自选行的本地标签与中文名也会参与匹配 |
 
-可以浏览的板块包括：US 的 NASDAQ / NYSE / AMEX，HK 的主板 / GEM / 基金信托，CN 的沪市主板 / 科创板 / 深市主板 / 创业板 / 北交所，JP 的东证，以及 CRYPTO 市值榜 `TOP`。港股债券、权证和牛熊证不在清单中。搜索单次最多返回 100 条；类型配置见 `SEARCH_SECURITY_TYPES`。
+线外说明：行情上游可能限频或限流，进程内缓存（报价短缓存、日历/基本面数小时）与逐 provider 健康采样
+就是为此设计；`GET /api/trading/status` 可查看 provider 健康与当前缓存命中。
 
-默认源顺序和各市场配置在 `lib/trading/config.js` 的 `MARKET_DATA_CONFIG`、`UNIVERSE_PROVIDERS`、`UNIVERSE_BOARDS` 中。更详细的接口和来源说明见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
+可以浏览的板块是 US 的 NASDAQ / NYSE / AMEX（`lib/trading/config.js` 的 `UNIVERSE_BOARDS`；
+市场级配置见同文件的 `MARKET_DATA_CONFIG`）。搜索单次最多返回 100 条；类型配置见 `SEARCH_SECURITY_TYPES`。
 
 ### 当前没有做的功能
 
-插件不支持下单、券商账户、持仓、盈亏、投资组合或回测；也没有财报日历、公告流、新闻流、盘中估值刷新、tick 行情或全市场实时覆盖。自选和偏好只在当前 DSH profile 的本地存储中保存，不承诺跨设备同步。
+插件不支持下单、券商账户、持仓核算、盈亏、投资组合分析或回测；也没有公告流、新闻流、盘中估值刷新、tick 行情或全市场实时覆盖。自选和偏好只在当前 DSH profile 的本地存储中保存，不承诺跨设备同步。
 
 ## 配置
 
