@@ -10,7 +10,7 @@
 
 **它不做的事**：不支持下单与券商账户接入，不提供投资建议（详见「当前没有做的功能」一节）。
 
-当前版本为 **0.9.1（Beta）**。实际版本以 `package.json` 为准，也可以通过 `GET /api/trading/health` 查看。
+当前版本为 **0.9.2（Beta）**。实际版本以 `package.json` 为准，也可以通过 `GET /api/trading/health` 查看。
 
 ## 与上游的差异
 
