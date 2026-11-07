@@ -37,35 +37,35 @@ host for. `delaySeconds` is the value the plugin carries into every payload
 (`null` means "not published by the provider", `0` means the feed reports the
 current print).
 
-| id | label | host(s) actually requested | markets | requested | delay | attribution in the UI | compliance note |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `yahoo` | Yahoo Finance | `query1.finance.yahoo.com` (`/v1/finance/search`, `/v8/finance/chart`, `/v7/finance/quote`, `/v10/finance/quoteSummary`, `/v1/test/getcrumb`); `fc.yahoo.com` (cookie handshake only) | US, HK | search, quote, candles, profile | `null` | "Yahoo Finance" link to the public quote page (US/HK and crypto only) | The cookie + crumb handshake is the endpoint's documented unauthenticated flow, refreshed lazily and retried once on `401`/`403`; the cookie lives in provider memory for the process, never on disk. A persistent `403` is classified `UPSTREAM_BLOCKED`, not retried, and the chain falls through. Terms: not verified in this repository. |
-| `stooq` | Stooq | `stooq.com/q/d/l/` (CSV); `stooq.com/q/l/` quote URL is configured but unused because the provider declares no quote capability | US, HK | candles (daily/weekly CSV only) | `null` | none offered | One request per `getCandles` call. A body that looks like a block (`access denied`) is surfaced as `DATA_UNAVAILABLE`; quotes and search are not implemented, so the plugin never presents a Stooq end-of-day close as a live quote. Attribution gap — see the note below the table. Terms: not verified in this repository. |
-| `eastmoney` | 东方财富 Eastmoney | `push2.eastmoney.com` plus the numbered mirrors `1/2/7/17/48.push2.eastmoney.com` (quotes and `ulist.np`), `push2his.eastmoney.com` plus `1/2/7/17/48.push2his.eastmoney.com` (kline, `clist`), `searchapi.eastmoney.com/api/suggest/get` | US, HK, CN, JP | search, quote, candles, profile, listings, indices | `null` | "东方财富" link to the public quote page (US/HK/CN); "新浪财经" also offered on CN rows | The largest host surface in the plugin, bounded by `maxHostsPerRequest: 6` and `hostCooldownMs: 45000` per request. Two identifiers travel in the query string (`searchToken`, `clistToken`); they are the values the public web page itself embeds, not user credentials, and they are not persisted. No login page is touched, no account is used. Terms: not verified in this repository. |
-| `tencent` | 腾讯财经 Tencent | `qt.gtimg.cn` (`/q=` batch quote); `web.ifzq.gtimg.cn` (`/appstock/app/kline/kline`) | US, HK, CN, JP | quote, candles | `null` | "腾讯财经" link to `gu.qq.com` (US/HK/CN keys) | Responses are GBK and decoded explicitly. Every minute-level Tencent endpoint is recorded as dead, so `intervals: ['1d','1wk']` keeps the router from ever asking for intraday data. Terms: not verified in this repository. |
-| `sina` | 新浪财经 Sina Finance | `stock.finance.sina.com.cn` (`/usstock/api/jsonp.php/.../US_MinKService.getDailyK`); `vip.stock.finance.sina.com.cn` (HK list, CN node lists); `money.finance.sina.com.cn` (CN daily kline, CN stock count) | US, HK, CN | candles, listings (daily only) | `null` | "新浪财经" link to the public company page (CN rows only) | Sends `Referer: https://finance.sina.com.cn/` on the CN nodes, the same header the public page sends. US daily history arrives as one large JSONP payload that is trimmed locally. Terms: not verified in this repository. |
-| `nasdaq` | Nasdaq | `api.nasdaq.com/api/screener/stocks` (one request, `limit: 10000`) | US | listings only | `null` | none offered | Used only as the US listing fallback when eastmoney's `clist` refuses. Sends `Referer: https://www.nasdaq.com/`. Declares no quote, candle, search or profile capability at all, so it can never become a price source. Attribution gap — see the note below the table. Terms: not verified in this repository. |
-| `binance` | Binance | `data-api.binance.vision` (`/api/v3/ticker/24hr`, `/api/v3/klines`; `/api/v3/exchangeInfo` is configured but not used by the provider) | CRYPTO | search, quote, candles | `0` | "Binance" link to the public trade page (crypto rows) | Public market-data host only; no account, no API key, no order endpoint. One klines call caps at 1000 rows and long ranges are paged under `klineMaxPages: 4`. `exchangeInfo` is deliberately not fetched because it is 17.7 MB and carries no names. Terms: not verified in this repository. |
-| `gate` | Gate.io | `api.gateio.ws` (`/api/v4/spot/tickers`, `/api/v4/spot/candlesticks`, `/api/v4/spot/currency_pairs`) | CRYPTO | quote, candles | `0` | "Gate.io" link to the public trade page (crypto rows) | Public spot market data only; no trading, no credentials. `currency_pairs` doubles as the English name dictionary. One candlesticks call caps at 1000 rows and is served as the newest 1000 rather than paginated. Terms: not verified in this repository. |
-| `coinlore` | CoinLore | `api.coinlore.net/api/tickers/` (100 rows per page) | CRYPTO | search (local filter), profile, listings | `null` | none offered | A directory/name source only: its prices carry no timestamp, so the provider declares no quote or candle capability and the router never asks it for a price. Attribution gap — see the note below the table. Terms: not verified in this repository. |
+| id | label | host(s) actually requested | requested | delay | attribution in the UI | compliance note |
+| --- | --- | --- | --- | --- | --- | --- |
+| `yahoo` | Yahoo Finance | `query1.finance.yahoo.com` (`/v8/finance/chart`, `/v7/finance/quote`, `/v1/test/getcrumb`); `fc.yahoo.com` (cookie handshake only) | quote, candles, profile | `null` | "Yahoo Finance" link to the public quote page | The cookie + crumb handshake is the endpoint's documented unauthenticated flow, refreshed lazily and retried once on `401`/`403`; the cookie lives in provider memory for the process, never on disk. A persistent `403` is classified `UPSTREAM_BLOCKED`, not retried, and the chain falls through. Terms: not verified in this repository. |
+| `stooq` | Stooq | `stooq.com/q/d/l/` (CSV); `stooq.com/q/l/` quote URL is configured but the provider declares no quote capability | candles, quote (daily CSV only) | `null` | none offered | One request per `getCandles` call. A body that looks like a block (`access denied`) is surfaced as `DATA_UNAVAILABLE`; intraday detail is not implemented here, so the plugin never presents a Stooq end-of-day close as a live quote. Attribution gap — see the note below the table. Terms: not verified in this repository. |
+| `nasdaq` | Nasdaq | `api.nasdaq.com/api/screener/stocks` (one request, `limit: 10000`); the earnings-calendar host documented in [DATA_SOURCES.md](DATA_SOURCES.md) | listings, earnings calendar | `null` | none offered | Primary (not fallback) for the US listing feed since the US-only scope change; also feeds the event reminders card and the brief's earnings warnings. Sends `Referer: https://www.nasdaq.com/`. Declares no quote, candle, search or profile capability at all, so it can never become a price source. Attribution gap — see the note below the table. Terms: not verified in this repository. |
+
+Outside the provider table, one further upstream serves a feature card rather
+than the chain: **SEC EDGAR** (`data.sec.gov` `/companyfacts`, fundamentals card
+inside the detail view). It is the SEC's own public, unauthenticated filing API;
+no login, no key, no attribution link is offered, and the card names the source
+as "SEC EDGAR" textually.
 
 **Attribution gap (softened claim).** The code does not offer a provider link
-for `stooq`, `nasdaq` or `coinlore`. The UI's source row (`SOURCE_LINKS` in
-`lib/client.js:1664-1742`) only builds links for `tradingview`, `yahoo`,
-`binance`, `gate`, `eastmoney`, `sina`, `yahoojapan` and `tencent`, and those
+for `stooq` or `nasdaq`. The UI's source row (`SOURCE_LINKS`) only builds links
+for `tradingview`, `yahoo`, `eastmoney` and a few pre-fork labels, and those
 links are inbound public pages, not a statement of licence. So the table above
-says "none offered" rather than claiming any attribution exists for those three;
+says "none offered" rather than claiming any attribution exists for those two;
 if you rely on them, credit them yourself.
 
-**Terms are not verified here.** For every one of the nine providers this
-repository contains no fetched copy of the provider's terms of service, and no
-provider terms text is quoted or paraphrased in this document. Where the plugin
-knows something about a provider it is a *dialect* fact measured by the code
-(host reachability, interval tokens, response encoding) — never a licence claim.
-Verification date: **2026-10-10**; every row above carries the same
-`not verified` status as of that date.
+**Terms are not verified here.** For every one of the three providers (and for
+the Nasdaq calendar and SEC EDGAR feature upstreams) this repository contains no
+fetched copy of the provider's terms of service, and no provider terms text is
+quoted or paraphrased in this document. Where the plugin knows something about a
+provider it is a *dialect* fact measured by the code (host reachability,
+interval tokens, response encoding) — never a licence claim. Verification date:
+**2026-10-10** (US-only scope change: **2026-11-06**); every row above carries
+the same `not verified` status as of that date.
 
-**Publish decision (per provider).** All nine are **kept enabled by default** in
+**Publish decision (per provider).** All three are **kept enabled by default** in
 the published build, because every one of them is a public unauthenticated
 endpoint that a browser tab could fetch, and the plugin's use is a bounded,
 rate-limited read for one local operator. The decision is revocable by
@@ -78,8 +78,7 @@ provider ids, so an operator who has no right to a feed can simply drop it:
 - id: trading-mode
   config:
     providers:
-      US: ['yahoo', 'stooq']      # eastmoney / tencent / sina / nasdaq removed
-      CRYPTO: ['binance', 'gate']
+      US: ['stooq', 'yahoo']   # any other order needs a reason to prefer it
 ```
 
 `validateProviderChains` rejects unknown ids, duplicates, empty arrays and
@@ -89,6 +88,14 @@ later found to forbid this automated use, the correct fix is to remove it from
 `MARKET_DATA_CONFIG` in `lib/trading/config.js`, not to work around its refusal.
 
 ## Provider terms and access details
+
+> **Scope change (2026-11-06).** The US-only build ships exactly three stock
+> providers (`yahoo`, `stooq`, `nasdaq`) plus the two feature upstreams named in
+> the table (Nasdaq's earnings calendar, SEC EDGAR). The sections below for
+> `eastmoney`, `tencent`, `sina`, `binance`, `gate` and `coinlore` describe
+> providers **removed by that scope change**; they are kept unchanged as audit
+> history of what the pre-fork build measured, and none of them is reachable
+> from the current code.
 
 The section above states the boundary. This section states, per provider, the
 seven facts an operator actually needs before deciding whether to keep a feed
@@ -182,7 +189,7 @@ The shared plugin mechanics that every block below refers to:
   `https://stooq.com/q/d/l/?s=aapl.us&i=d` answered **HTTP 403** /
   `Access denied`, surfaced by the plugin as `DATA_UNAVAILABLE`.
 
-### eastmoney — 东方财富 Eastmoney
+### (removed provider, audit history) eastmoney — 东方财富 Eastmoney
 
 - Terms URL: `https://corp.eastmoney.com/fuwutiaokuan.html` — fetched (HTTP 200)
   and it is a service agreement served in **GBK**, which this document's fetch
@@ -213,7 +220,7 @@ The shared plugin mechanics that every block below refers to:
   environment (`fetch failed`) and is therefore neither confirmed nor denied
   here.
 
-### tencent — 腾讯财经 Tencent
+### (removed provider, audit history) tencent — 腾讯财经 Tencent
 
 - Terms URL: no operator terms URL was confirmed for the finance endpoints.
   `www.tencentcloud.com/document/product/301/9248` was fetched (HTTP 200) and is
@@ -238,7 +245,7 @@ The shared plugin mechanics that every block below refers to:
   200** with a `v_usAAPL="…"` quote payload carrying a timestamp — a public
   unauthenticated read, which is an access fact and not a licence.
 
-### sina — 新浪财经 Sina Finance
+### (removed provider, audit history) sina — 新浪财经 Sina Finance
 
 - Terms URL: `https://finance.sina.cn/finance_zt/financeapp/appPayAgreement.shtml`
   — fetched (HTTP 200) and its title is 服务使用协议 with a first clause stating
@@ -297,7 +304,7 @@ The shared plugin mechanics that every block below refers to:
 - Measured access (2026-10-10): the screener endpoint did not answer this
   environment (`fetch failed`).
 
-### binance — Binance
+### (removed provider, audit history) binance — Binance
 
 - Terms URL: no terms page was confirmed. `www.binance.com/en/terms` and
   `www.binance.com/en/terms-of-use` could not be resolved from this environment
@@ -325,7 +332,7 @@ The shared plugin mechanics that every block below refers to:
   **HTTP 200** with public JSON (`lastPrice`, `volume`, `quoteVolume`, `openTime`,
   `closeTime`) for an anonymous caller — access confirmed, permission not.
 
-### gate — Gate.io
+### (removed provider, audit history) gate — Gate.io
 
 - Terms URL: no Gate terms page was confirmed for `api.gateio.ws`; `www.gate.io/terms`
   and `www.gate.io/zh/terms` could not be resolved from this environment. The
@@ -356,7 +363,7 @@ The shared plugin mechanics that every block below refers to:
 - Measured access (2026-10-10): only the documentation host was reached from this
   environment; `api.gateio.ws` itself was not exercised here.
 
-### coinlore — CoinLore
+### (removed provider, audit history) coinlore — CoinLore
 
 - Terms URL: no terms page was confirmed for `api.coinlore.net`.
   `www.coinlore.com/cryptocurrency-data-api` was fetched (HTTP 200) and rendered

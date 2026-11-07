@@ -146,9 +146,8 @@ AI 是可选能力。即使宿主没配模型，行情面板仍可以使用；AI
 - id: trading-mode
   config:
     networkMode: auto  # auto | standard | compatibility
-    providers:         # 示例：覆盖默认数据源顺序
-      US: ['yahoo', 'eastmoney', 'tencent', 'sina', 'stooq']
-      CRYPTO: ['binance', 'gate', 'coinlore']
+    providers:         # 示例：覆盖默认数据源顺序（只有 US 一个市场）
+      US: ['stooq', 'yahoo']
     identity:
       localBucket: my-single-user-box  # 只适用于单用户部署
     security:
@@ -157,7 +156,7 @@ AI 是可选能力。即使宿主没配模型，行情面板仍可以使用；AI
 
 `networkMode` 默认是 `auto`：平时使用 Node.js 标准 HTTP(S) 网络行为，只有某个 host 真正发生传输层失败时才切到兼容模式。`standard` 始终使用默认 DNS/连接策略；`compatibility` 会记录上次可用的地址族，并在重试时尝试固定或翻转。非法值会报配置错误。
 
-`providers` 可以为每个市场指定有序的数据源列表。可用 id：`yahoo`、`eastmoney`、`tencent`、`stooq`、`sina`、`nasdaq`、`binance`、`gate`、`coinlore`。未知市场、未知 provider、重复项、空数组或非数组都不会覆盖默认配置，日志会说明原因。
+`providers` 可以为市场指定有序的数据源列表（本 fork 只接受 `US`，链路顺序实际行走）。可用 id：`yahoo`、`stooq`、`nasdaq`。未知市场、未知 provider、重复项、空数组或非数组都不会覆盖默认配置，日志会说明原因。
 
 `identity.localBucket` 只能用于你明确知道 **DSH 部署只有一个用户** 的场景。共享部署不要设置，否则不同用户会进入同一个存储桶。
 

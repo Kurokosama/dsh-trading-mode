@@ -4,45 +4,42 @@ Every upstream this plugin talks to is defined once in `lib/trading/config.js`
 (`PROVIDER_CONFIG`) and implemented once in `lib/trading/providers/<id>.js`. Nothing else in
 the code base names a provider, so this file is the complete list of what leaves your machine.
 
-Markets: `US`, `HK`, `CN` (mainland China), `JP` (Japan) and `CRYPTO`. A provider is only
-asked for a market and a capability it declares — the router filters candidates before any
-request is made.
+Markets: `US` only. A provider is only asked for a market and a capability it declares —
+the router filters candidates before any request is made. (The pre-fork multi-market
+configuration, including the HK / CN / JP / CRYPTO chains and their providers, was removed
+with the US-only scope change; [docs/SCOPE.md](SCOPE.md) keeps the removal log.)
 
 ## Implemented providers
 
-| Provider id | Upstream host / page | Markets | Features | Notes and known limits |
-| --- | --- | --- | --- | --- |
-| `yahoo` | `query1.finance.yahoo.com` — `/v1/finance/search`, `/v8/finance/chart`, `/v7/finance/quote`, `/v10/finance/quoteSummary` (cookie + crumb handshake) | US, HK | search, quote, candles, profile | First link of the US/HK chains and the named primary. Measured **HTTP 403** from some networks (IP-level block); the health-aware chain falls through when that happens. Also serves US index candles through its chart endpoint. |
-| `eastmoney` (东方财富) | `push2.eastmoney.com` plus 12 numbered mirror aliases (quote/list), `push2his.eastmoney.com` plus 6 aliases (history), `searchapi.eastmoney.com/api/suggest/get` (search) | US, HK, CN, JP | search, quote, candles, profile, listings, indices | Richest feed: Chinese names, board and industry per listing. Quotes request `fltt=2` so prices arrive in real units. Symbols use the upstream dialect (`105.AAPL`, `116.00700`, `1.600519`, `0.000001`, `176.7203`). The bulk `clist` and `kline` endpoints are intermittently reset by the upstream; the provider rotates mirrors and cools one host down for 45 s before retrying it. Indices are served from eastmoney's market number 100 (`100.NDX`, `100.N225`, …). |
-| `tencent` (腾讯财经) | `qt.gtimg.cn/q=<key>` (quotes), `web.ifzq.gtimg.cn/appstock/app/kline/kline` (daily/weekly candles) | US, HK, CN, JP | quote, candles | Responses are GBK. Daily and weekly only (the minute endpoints answer `Can't load controller`). Mainland quotes arrive in lots and are converted to shares. Tokyo klines return a single bar, so Japan's daily history does not rely on this feed. Serves quotes/candles for VIX, HSI and HSTECH. |
-| `stooq` | `stooq.com/q/l/` (quote CSV), `stooq.com/q/d/l/` (daily CSV) | US, HK | candles | The historical fallback named by the design. Measured **403** (access denied) from some networks, so it is a lower-priority chain member. |
-| `sina` (新浪财经) | `stock.finance.sina.com.cn` (US daily history, JSONP), `vip.stock.finance.sina.com.cn` (HK and mainland listings), `money.finance.sina.com.cn` (mainland daily kline) | US, HK, CN | candles, listings | Daily history only. US daily history arrives as one large JSONP payload trimmed to the range; the HK listing is 60 rows per page and the mainland node lists are 100 rows per page (GBK, `Referer: https://finance.sina.com.cn/`). Also serves `^IXIC` / `^NDX` / `^DJI` daily candles. |
-| `nasdaq` | `api.nasdaq.com/api/screener/stocks` | US | listings | One request returns roughly seven thousand US rows, so it needs no upstream paging. Quotes and candles stay with the regular chain; the provider declares no quote capability at all. |
-| `binance` | `data-api.binance.vision` — `/api/v3/ticker/24hr`, `/api/v3/klines` | CRYPTO | quote, candles | Crypto primary. Every pair is quoted against USDT and spelled as one upper-case token (`BTCUSDT`). The weekly interval token is `1w` (`1wk` is rejected), one klines call returns at most 1000 rows, and long ranges are paged. `exchangeInfo` is huge and carries no names, so names come from the directories below. |
-| `gate` | `api.gateio.ws` — `/api/v4/spot/tickers`, `/api/v4/spot/candlesticks`, `/api/v4/spot/currency_pairs` | CRYPTO | quote, candles | Crypto fallback. Pairs are spelled `BTC_USDT`; candlestick rows arrive newest-first with the close before the open and are reordered by the adapter. `currency_pairs` is also the English name dictionary. |
-| `coinlore` | `api.coinlore.net/api/tickers/` | CRYPTO | search, profile, listings | Ranked coin directory (names, market capitalisation, rank) used for search, profiles and the crypto listing board. **Never used as a quote source**: its prices carry no timestamp and differ from exchange quotes by roughly 0.2%, and the plugin does not present a number it cannot attribute and time-stamp. |
+| Provider id | Upstream host / page | Features | Notes and known limits |
+| --- | --- | --- | --- |
+| `yahoo` | `query1.finance.yahoo.com` — `/v8/finance/chart`, `/v7/finance/quote` (cookie + crumb handshake) | quote, candles, profile, search | First link of the US chain. Measured **HTTP 403** from some networks (IP-level block); the health-aware chain falls through when that happens. Also serves the US index tiles through its chart endpoint. |
+| `stooq` | `stooq.com/q/l/` (quote CSV), `stooq.com/q/d/l/` (daily CSV) | candles, quote | The historical fallback for the US chain. Measured **403** (access denied) from some networks, so it sits behind Yahoo; as a quote source it is deliberately non-primary because it cannot answer intraday snapshots. |
+| `nasdaq` | `api.nasdaq.com/api/screener/stocks` | listings | One request returns roughly seven thousand US rows, so it needs no upstream paging. Quotes and candles stay with the regular chain; the provider declares no quote capability at all. |
+
+In addition to the data providers above, two further upstreams answer feature cards rather
+than the chain: **Nasdaq's earnings calendar** feeds the event reminders card and the brief's
+earnings warnings (six-hour per-day cache; it rejects non-browser User-Agents, so requests go
+out with `HTTP_POLICY.userAgent`), and **SEC EDGAR** (`data.sec.gov` `companyfacts`) feeds the
+fundamentals card inside the detail view (six-hour cache; the ticker→CIK lookup caches for
+24 h; ETFs and funds carry no XBRL facts and skip the card).
 
 ## Default provider chains
 
 Per-market order, quoted from `MARKET_DATA_CONFIG` in `lib/trading/config.js`:
 
 ```js
-US:     { primary: 'yahoo',     historicalFallback: 'stooq',   chain: ['yahoo', 'eastmoney', 'tencent', 'sina', 'stooq'] }
-HK:     { primary: 'yahoo',     historicalFallback: 'stooq',   chain: ['yahoo', 'eastmoney', 'tencent', 'stooq'] }
-CN:     { primary: 'eastmoney', historicalFallback: 'sina',    chain: ['eastmoney', 'tencent', 'sina'] }
-JP:     { primary: 'eastmoney', historicalFallback: 'eastmoney', chain: ['eastmoney', 'tencent'] }
-CRYPTO: { primary: 'binance',   historicalFallback: 'gate',    chain: ['binance', 'gate', 'coinlore'] }
+US: { primary: 'yahoo', historicalFallback: 'stooq', chain: ['yahoo', 'stooq'] }
 ```
 
 `primary` and `historicalFallback` are labels; the order actually walked is `chain`. The
 chain is filtered by capability and health at request time, so a provider that cannot serve a
-market/feature/interval is never asked.
+feature is never asked.
 
 Listing (universe) feeds are configured separately in `UNIVERSE_PROVIDERS`:
 
 ```js
-US: ['eastmoney', 'nasdaq']   HK: ['eastmoney', 'sina']   CN: ['sina', 'eastmoney']
-JP: ['eastmoney']             CRYPTO: ['coinlore', 'binance']
+US: ['nasdaq']
 ```
 
 ## Overriding the chains
@@ -54,8 +51,7 @@ Chains are user configuration. Set them on the plugin entry in the profile's pat
 - id: trading-mode
   config:
     providers:
-      US: ['nasdaq', 'stooq']
-      CRYPTO: ['gate']
+      US: ['stooq', 'yahoo']
     networkMode: compatibility
 ```
 
@@ -63,19 +59,18 @@ Accepted keys: `providers` (market → ordered provider id list), `networkMode`,
 `identity.localBucket` (a stable string naming the single-user storage bucket, used only when
 the host offers no anonymous user id) and `security.allowUnfencedLoopback` (boolean, default
 `false` — the one request-fence opt-out; see `docs/PRIVACY.md`). Provider
-ids are validated against the registry: `yahoo`, `eastmoney`, `tencent`, `stooq`, `sina`,
-`nasdaq`, `binance`, `gate`, `coinlore`.
+ids are validated against the registry: `yahoo`, `stooq`, `nasdaq`.
 
 Validation failures are reported once at startup and the shipped default stays in force — a
 bad value never breaks the plugin. Messages are explicit about what was expected, for example:
 
 ```
 providers must be an object that maps a market to an ordered provider list (got array)
-providers.XX: unknown market (accepted: US, HK, CN, JP, CRYPTO)
-providers.US: expected an array of provider ids (accepted: yahoo, eastmoney, tencent, stooq, sina, nasdaq, binance, gate, coinlore)
+providers.XX: unknown market (accepted: US)
+providers.US: expected an array of provider ids (accepted: yahoo, stooq, nasdaq)
 providers.US: the chain must list at least one provider (accepted: …)
 providers.US: unknown provider "futu" (accepted: …)
-providers.US: provider eastmoney is listed twice
+providers.US: provider stooq is listed twice
 networkMode must be one of auto, standard, compatibility (got "fast")
 security.allowUnfencedLoopback must be true or false (got "yes please")
 ```
@@ -122,8 +117,8 @@ cache is keyed per symbol and shared process-wide, never per user.
 
 ## Per-capability health
 
-Health is keyed by **`healthScope(provider, feature)`** — `eastmoney::candles`,
-`eastmoney::search`, and so on — not by provider id alone. That matters because upstreams fail
+Health is keyed by **`healthScope(provider, feature)`** — `yahoo::candles`,
+`yahoo::search`, and so on — not by provider id alone. That matters because upstreams fail
 by endpoint: a provider whose candle endpoint is being reset can keep answering search and
 quote. The status endpoint rolls the scoped entries back up to one row per provider and keeps
 the per-capability detail in `scopes`.
@@ -132,10 +127,10 @@ the per-capability detail in `scopes`.
 
 **The auditable per-provider table lives in [`DATA_COMPLIANCE.md`](DATA_COMPLIANCE.md)**:
 one row per provider id in `PROVIDER_CONFIG` order, with the hosts actually requested, the
-markets and capabilities it serves, the `delaySeconds` the plugin records, the attribution the
+capabilities it serves, the `delaySeconds` the plugin records, the attribution the
 UI offers (or does not offer), and the compliance status. As of **2026-10-10** every provider's
 terms are marked **not verified** — no terms text was fetched while writing these documents —
-and all nine stay **enabled by default** because each is a public unauthenticated endpoint; an
+and all three stay **enabled by default** because each is a public unauthenticated endpoint; an
 operator with no right to a feed can drop it with the `providers` config override instead of
 patching code. The browser-side **TradingView embed** is a third-party *embed*, not a provider,
 and is treated separately in that document.
@@ -153,5 +148,5 @@ and is treated separately in that document.
 - **Availability is not guaranteed.** Upstreams block, rate-limit, reset connections and
   change their responses without notice; the plugin degrades to a typed error or to labelled
   stale data rather than inventing a value.
-- Index levels are points, not tradable prices, and crypto figures are spot prices on one
-  venue — see the README's limitations section for the full list.
+- Index levels are points, not tradable prices — see the README's limitations section for
+  the full list.
