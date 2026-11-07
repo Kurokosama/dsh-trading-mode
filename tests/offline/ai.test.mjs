@@ -593,6 +593,45 @@ async function main() {
     return 'closuresSoon rides the brief input and outranks the macro line';
   });
 
+  await check('1.1: an expiry day still trades, so it warns about the hour rather than the day', () => {
+    const base = { stocks: [{ symbol: 'AAPL', quote: { price: 210, changePct: 1 } }] };
+    const far = buildBriefInput({
+      ...base,
+      closures: { today: '2026-11-13', events: [], expiries: [{ date: '2026-12-18', days: 35, quarterly: true }] },
+    });
+    assert.equal(far.opexSoon, undefined, 'an expiry a month out stays out of the model input');
+
+    const near = buildBriefInput({
+      ...base,
+      closures: { today: '2026-11-13', events: [], expiries: [{ date: '2026-11-20', days: 7, quarterly: false, nameZh: '期权到期日' }] },
+    });
+    assert.deepEqual(near.opexSoon.map((row) => `${row.date}:${row.days}:${row.quarterly}`), ['2026-11-20:7:false']);
+
+    const en = derivedSuggestions(near, 'en');
+    assert.ok(
+      en.some((line) => line.includes('2026-11-20') && line.includes('in 7 days') && /pin to round strikes/.test(line) && /before the last hour/.test(line)),
+      'the en idea is about when in the day to trade, not whether the market is open',
+    );
+    const zh = derivedSuggestions(near, 'zh');
+    assert.ok(
+      zh.some((line) => line.includes('2026-11-20') && line.includes('7 天后') && line.includes('钉住') && line.includes('最后一小时')),
+      'the zh idea says the same thing in the same order',
+    );
+
+    const quarterly = derivedSuggestions(buildBriefInput({
+      ...base,
+      closures: { today: '2026-12-14', events: [], expiries: [{ date: '2026-12-18', days: 4, quarterly: true }] },
+    }), 'en');
+    assert.ok(
+      quarterly.some((line) => line.includes('quarter-end contracts')),
+      'a quarterly expiry says so, because the hedging is larger',
+    );
+
+    const quiet = derivedSuggestions(buildBriefInput({ ...base, closures: { today: '2026-11-13', events: [] } }), 'en');
+    assert.ok(quiet.every((line) => !/expire/i.test(line)), 'no expiry idea when the calendar carries none');
+    return 'opexSoon rides the brief input and speaks about the session shape';
+  });
+
   await check('0.5.x: a tag cluster earns a concentration note, quoted as intent', () => {
     const realised = buildBriefInput({
       stocks: [
