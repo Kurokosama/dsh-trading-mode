@@ -852,6 +852,30 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('keys: one table describes the shortcuts, and `?` respects text fields', () => {
+  const I = internals
+  const CSS = I.CSS
+  const zhT = I.makeT('zh')
+  assert(Array.isArray(I.SHORTCUTS) && I.SHORTCUTS.length >= 5, 'the table covers the keys the panel answers')
+  const keys = I.SHORTCUTS.map((row) => row.keys)
+  for (const key of ['/', 'Enter', 'Esc', '?']) assert(keys.includes(key), `the table lists ${key}`)
+  for (const row of I.SHORTCUTS) {
+    assert(row.label && zhT(row.label) !== row.label, `every row is localised: ${row.label}`)
+  }
+  assert(CSS.includes('.tm-help__card') && CSS.includes('.tm-kbd'), 'the overlay and its key caps are styled')
+  assert(zhT('Keyboard shortcuts') === '快捷键', 'the dialog title is localised')
+
+  const plain = { key: '?', target: { tagName: 'DIV' } }
+  assert(I.wantsHelp(plain) === true, 'a bare ? opens the list')
+  assert(I.wantsHelp({ key: '?', target: { tagName: 'INPUT' } }) === false, 'typing ? into a field stays typing')
+  assert(I.wantsHelp({ key: '?', target: { tagName: 'TEXTAREA' } }) === false, 'a textarea counts as typing too')
+  assert(I.wantsHelp({ key: '?', target: { tagName: 'DIV', isContentEditable: true } }) === false, 'contenteditable counts as typing')
+  assert(I.wantsHelp({ key: '?', target: { tagName: 'DIV' }, metaKey: true }) === false, 'browser shortcuts keep their ?')
+  assert(I.wantsHelp({ key: 'x', target: { tagName: 'DIV' } }) === false, 'other keys are not ours')
+  assert(I.wantsHelp({ key: '?', target: { tagName: 'DIV' }, defaultPrevented: true }) === false, 'a handled event is left alone')
+  assert(I.wantsHelp(null) === false, 'no event, no overlay')
+})
+
 await check('detail: the profile reads as facts plus a summary that does not wall off the page', () => {
   const I = internals
   const CSS = I.CSS
