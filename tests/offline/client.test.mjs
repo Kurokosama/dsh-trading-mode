@@ -2492,6 +2492,34 @@ await check('theme: every panel surface is painted opaque from the scheme palett
   return `${used.size} alias tokens mapped, ${css.length} CSS chars`;
 });
 
+await check('watchlist: a position missing from the list is called out, not silently dropped', async () => {
+  const orphans = internals.orphanHoldings;
+  const rows = [{ symbol: 'AAPL', market: 'US', quote: { price: 210 } }]
+  const costs = {
+    'US:AAPL': { price: 200, shares: 2 },
+    'US:NVDA': { price: 80, shares: 10 },
+    'US:TSLA': { price: 400, shares: 1 },
+    'US:MSFT': { price: 300, shares: 0 },
+  }
+  const found = orphans(rows, costs)
+  assert(found.map((entry) => entry.symbol).join(',') === 'NVDA,TSLA', `biggest blind spot first, got ${found.map((e) => e.symbol)}`);
+  assert(found[0].value === 800, 'value is shares × the recorded price');
+  assert(found[0].market === 'US', 'the market survives the key split');
+  assert(!found.some((entry) => entry.symbol === 'AAPL'), 'a row on the list is not orphaned');
+  assert(!found.some((entry) => entry.symbol === 'MSFT'), 'zero shares is a placeholder, not a position');
+  assert(orphans(rows, costs, 1).length === 1, 'the cap is honoured');
+  assert(orphans([], costs).length === 3, 'no rows means every position is orphaned');
+  assert(orphans(rows, null).length === 0, 'no cost basis, nothing to call out');
+  const bare = orphans([], { ZZZZ: { price: 5, shares: 2 } })
+  assert(bare.length === 1 && bare[0].symbol === 'ZZZZ' && bare[0].market === null, 'a key without a market still reads');
+  const zh = internals.makeT('zh');
+  assert(zh('Held but not on the watchlist') === '持仓不在自选里', 'zh label');
+  assert(zh('The brief only reads the watchlist, so these positions never appear in it.').includes('简报只读自选'), 'zh tooltip');
+  assert(internals.CSS.includes('.tm-orphan__btn'), 'the notice needs its own style hook');
+  assert(String(internals.WatchlistCard).includes('orphanHoldings(rows, costs)'), 'the card must render the notice');
+  return 'orphans covered';
+});
+
 await check('home: the jump chips point at cards that exist, and the scroll is guarded', async () => {
   const zh = internals.makeT('zh');
   assert(internals.JUMP_TARGETS.length === 3, 'three jumps: board, calendar, brief');
