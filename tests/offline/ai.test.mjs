@@ -516,6 +516,27 @@ async function main() {
     return 'dip-into-print idea replaces the plain print line above the threshold';
   });
 
+  await check('1.2: every level a suggestion names carries its exact price', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 210, changePct: 0.5 }, technical: { technical: { ma20: 195, ma50: 185, trendAlignment: 'short-term-above-medium' } } },
+        { symbol: 'MSFT', quote: { price: 420, changePct: -0.5 }, technical: { technical: { ma20: 440, ma50: 450, trendAlignment: 'short-term-below-medium' } } },
+        { symbol: 'AAPL', quote: { price: 275, changePct: 0.2 }, technical: { technical: { ma20: 260, ma50: 255, trendAlignment: 'bullish-stack' } } },
+      ],
+      analysts: [{ symbol: 'TSLA', targetMean: 310, price: 250, rating: 'buy', count: 30 }],
+    });
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(en.some((line) => /NVDA/.test(line) && /medium-term average \(185\.00\)/.test(line)), `above-medium quotes the 50-day price, got ${JSON.stringify(en)}`);
+    assert.ok(en.some((line) => /MSFT/.test(line) && /average \(450\.00\)/.test(line)), 'below-medium too');
+    assert.ok(en.some((line) => /TSLA/.test(line) && /now 250\.00, target 310\.00/.test(line)), 'the analyst gap names both prices');
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(zh.some((line) => /NVDA/.test(line) && /中期均线（185\.00）/.test(line)), 'zh quotes the same price');
+    assert.ok(zh.some((line) => /TSLA/.test(line) && /现价 250\.00，目标 310\.00/.test(line)), 'zh target sentence carries both numbers');
+    const bare = derivedSuggestions({ stocks: [{ symbol: 'VTI', quote: { price: 400 }, changePct: 0.2 }] }, 'en');
+    assert.ok(bare.every((line) => !/50-day/.test(line)), 'no price, no invented number');
+    return 'suggestions carry the price next to the percentage';
+  });
+
   await check('0.5.x: a market-wide macro print inside 7 days frames the whole brief', () => {
     const realised = buildBriefInput({
       stocks: [{ symbol: 'VTI', quote: { price: 400, changePct: 0.2 } }],
