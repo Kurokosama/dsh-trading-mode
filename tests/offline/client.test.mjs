@@ -1457,6 +1457,16 @@ await check('detail news: the same 24-hour window the home card offers, on one s
   return 'detail news window ok';
 });
 
+await check('index detail: an index with no fund says why nothing trades', () => {
+  const css = internals.CSS;
+  const zhT = internals.makeT('zh');
+  assert(css.includes('.tm-indexnote'), 'the note is styled');
+  const line = 'Index levels are points on a scale, not a security — there is nothing to buy or sell here.';
+  assert(zhT(line) === '指数点位是刻度上的读数，不是可买卖的证券。', `note localises, got ${zhT(line)}`);
+  assert(source.includes('indexRow && !proxyFund'), 'the note is tied to the fundless case');
+  assert(source.includes("h('p', { className: 'tm-indexnote' }"), 'the note renders as a paragraph');
+});
+
 await check('chart: a weekly bar is one click away where it is legible', () => {
   const css = internals.CSS;
   const zhT = internals.makeT('zh');
