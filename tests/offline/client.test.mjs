@@ -565,6 +565,33 @@ await check('watchlist: the auto refresh toggle states what it will do next', as
   assert(/\.tm-auto--on \{[^}]*--tm-brand/.test(internals.CSS), 'the on state is visible, not just in the title attribute')
 })
 
+await check('detail page: the position line turns the yield into money the holder receives', async () => {
+  const zh = internals.makeT('zh')
+  const income = internals.dividendIncome
+
+  // 100 shares at $1.20 a year on a $3,000 basis: $120 a year, 4% on what was
+  // paid. The quote page would only show the per-share rate and a yield on the
+  // current price, which is not what this holder earns.
+  const held = { shares: 100, basis: 3000, value: 3300, pnl: 300, pct: 10, today: 12, currency: 'USD' }
+  const paid = income({ dividendRate: 1.2 }, held)
+  assert(paid.annual === 120, 'the annual amount is rate times shares')
+  assert(Math.abs(paid.onCost - 4) < 1e-9, 'cost yield is measured against what was paid')
+  assert(paid.currency === 'USD', 'the currency travels with the amount')
+
+  assert(income({ dividendRate: 0 }, held) === null, 'a non-payer says nothing')
+  assert(income({}, held) === null, 'no rate, no line')
+  assert(income({ dividendRate: 1.2 }, null) === null, 'no position, no line')
+  assert(income({ dividendRate: 1.2 }, { shares: 0, basis: 0, currency: 'USD' }) === null, 'zero shares is not a position')
+  const noBasis = income({ dividendRate: 1.2 }, { shares: 10, basis: 0, currency: 'USD' })
+  assert(noBasis && noBasis.annual === 12 && noBasis.onCost === null, 'without a basis the amount still shows, the ratio does not')
+
+  assert(zh('Annual dividends') === '年化分红', 'the label localises')
+  assert(zh('{pct} on cost', { pct: '4.00%' }) === '成本上 4.00%', 'the cost ratio reads as a sentence, not a key')
+  const source = String(internals.DetailView)
+  assert(source.includes('dividendIncome(company, held)'), 'the position line asks for the dividend')
+  assert(source.includes("t('Annual dividends')"), 'and names it')
+})
+
 await check('detail page: a macro print inside two days is flagged before the reader acts', async () => {
   const en = internals.makeT('en')
   const zh = internals.makeT('zh')
