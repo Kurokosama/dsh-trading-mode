@@ -694,6 +694,50 @@ await suite.check('/status publishes head-room and never leaks a URL, host or pa
   return 'limits reported, diagnostics redacted';
 });
 
+await suite.check('earnings: the calendar route answers, and a symbol filter keeps one name', async () => {
+  // The route used to call a factory that was never imported: every calendar
+  // request threw at runtime and the suite never noticed, because the route had
+  // no test. The class is patched instead of the network, so this stays offline.
+  const { EarningsCalendar } = await import('../../lib/trading/calendar.js');
+  const original = EarningsCalendar.prototype.window;
+  const rows = [
+    { symbol: 'AAPL', date: '2026-11-20', session: 'post', epsForecast: 1.5 },
+    { symbol: 'MSFT', date: '2026-11-19', session: 'pre', epsForecast: 3.1 },
+  ];
+  EarningsCalendar.prototype.window = async () => ({
+    from: '2026-11-07',
+    to: '2026-11-28',
+    today: '2026-11-07',
+    dates: ['2026-11-19', '2026-11-20'],
+    events: rows,
+    bySymbol: { MSFT: rows[1], AAPL: rows[0] },
+    failed: [],
+    source: 'nasdaq',
+    timestamp: 1,
+  });
+  try {
+    const { api } = buildApi();
+    const whole = await call(api, { method: 'GET', url: '/api/trading/earnings?days=21' });
+    assert.equal(whole.status, 200, `the calendar route must answer, got ${whole.status}`);
+    assert.equal(whole.payload.value.events.length, 2, 'no filter means the whole window');
+
+    const one = await call(api, { method: 'GET', url: '/api/trading/earnings?days=21&symbol=aapl' });
+    assert.equal(one.status, 200);
+    assert.equal(one.payload.value.symbol, 'AAPL', 'the filter echoes the ticker it resolved');
+    assert.equal(one.payload.value.events.length, 1, 'only the requested name is shipped');
+    assert.equal(one.payload.value.events[0].symbol, 'AAPL');
+    assert.deepEqual(Object.keys(one.payload.value.bySymbol), ['AAPL'], 'bySymbol shrinks with the events');
+
+    const none = await call(api, { method: 'GET', url: '/api/trading/earnings?days=21&symbol=ZZZZ' });
+    assert.equal(none.status, 200, 'an empty answer is not an error');
+    assert.equal(none.payload.value.events.length, 0);
+    assert.deepEqual(none.payload.value.bySymbol, {});
+  } finally {
+    EarningsCalendar.prototype.window = original;
+  }
+  return 'route answers, symbol filter shrinks events and bySymbol';
+});
+
 await suite.check('redactDiagnostic keeps identifiers while hiding infrastructure', () => {
   assert.equal(redactDiagnostic('https://push2.eastmoney.com/api/qt/stock/get?secid=1.600519&f=1'), 'https://push2.eastmoney.com/…');
   assert.equal(redactDiagnostic('failed at 10.0.0.7:443'), 'failed at [redacted-ip]:443');

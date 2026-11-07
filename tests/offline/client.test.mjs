@@ -493,6 +493,51 @@ await check('macro card: the curated calendar maps to bilingual, bilingual label
   return '6 kind labels + hint resolve in zh; detail strip gates at 3 days';
 });
 
+await check('detail page: dated events arrive in order and the calendar asks for one name', async () => {
+  const en = internals.makeT('en');
+  const zh = internals.makeT('zh');
+  const text = (node) => {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map(text).join(' ');
+    return text((node.props || {}).children);
+  };
+  const day = (y, m, d) => Date.UTC(y, m - 1, d, 15, 0);
+  const window = {
+    today: '2026-11-07',
+    bySymbol: { NVDA: { symbol: 'NVDA', date: '2026-11-20', session: 'post', epsForecast: 1.2, analysts: 41 } },
+  };
+  // An ex-dividend day three days out and a report thirteen days out: the near
+  // one has to come first, otherwise the block is sorted by code order, not time.
+  const ordered = internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA');
+  assert(ordered.length === 2, `both dated events must render, got ${ordered.length}`);
+  assert(text(ordered[0]).includes('Ex-dividend'), 'the nearer event comes first');
+  assert(text(ordered[1]).includes('Next earnings'), 'the report follows it');
+  assert(text(ordered[0]).includes('own it before this day to collect'), 'the ex-dividend row carries the rule, not just the date');
+  // A past ex-dividend day is history: the Market data cell already shows it.
+  const past = internals.upcomingStrips(window, { exDividendDate: day(2026, 10, 1) }, 'NVDA');
+  assert(past.length === 1 && text(past[0]).includes('Next earnings'), 'a past ex-dividend day stays off the strip');
+  assert(internals.upcomingStrips(null, {}, 'NVDA').length === 0, 'no window and no profile means no strip');
+  assert(internals.nextEarningsEvent(window, 'AAPL') === null, 'a ticker outside the window answers nothing');
+  // The strip renders through the live locale, so the dictionary is what a
+  // language switch actually rewrites — assert the entries, not a second render.
+  // The strip renders in whichever language the page is read in: the former
+  // implementation called a module-level `t` that never existed, which threw on
+  // every held name with a report inside the window.
+  const translated = internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA', zh);
+  assert(translated.length === 2, 'both rows survive translation');
+  assert(text(translated[0]).includes('除息日') && text(translated[0]).includes('想拿这次分红要在这天之前持有'), 'the ex-dividend rule localises');
+  assert(text(translated[1]).includes('下次财报') && text(translated[1]).includes('13 天后'), 'the countdown localises too');
+  assert(zh('own it before this day to collect') === '想拿这次分红要在这天之前持有', 'the rule is in the dictionary');
+  assert(zh('Shares bought on or after this date do not carry the dividend, and the price opens lower by roughly the payment.').includes('除息日'), 'the tooltip localises');
+  assert(internals.relativeDayOf(day(2026, 10, 1), zh) === '', 'a past day answers nothing even in zh');
+  assert(internals.relativeDayOf(day(2026, 11, 9), zh) === '2 天后', 'the countdown reads from the date, not the render');
+  // The request must name the ticker: the route otherwise ships the whole
+  // market's calendar for one stock.
+  assert(String(internals.DetailView).includes('/earnings?days=21&symbol='), 'the detail page filters the calendar server-side');
+  return 'near ex-dividend ranks first, past dates stay out, the calendar request names one ticker';
+});
+
 await check('etf holdings: the top-ten table ships with weight bars and bilingual titles', async () => {
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');
