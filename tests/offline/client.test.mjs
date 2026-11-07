@@ -555,6 +555,31 @@ await check('fundamentals: the growth and margin grid localises every row', asyn
   return '9/9 fundamentals labels localise';
 });
 
+await check('price alerts: bounds are per market, and only a real price fires them', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-alerts__row') && internals.CSS.includes('.tm-alertfield__in'), 'the banner and the editor ship their CSS');
+  assert(zh('Price alert') === '价格提醒', 'the editor label localises');
+  assert(zh('{n} price alerts triggered') === '{n} 条价格提醒已触发', 'the banner count localises');
+  assert(zh('above') === '高于' && zh('below') === '低于', 'both bounds localise');
+  // The key is market-qualified: a US listing and a crypto pair can share a
+  // ticker, and an alert armed on one must not fire on the other.
+  const map = { 'US:AAPL': { above: 200, below: '150' } };
+  const us = internals.alertOf(map, { market: 'US', symbol: 'AAPL' });
+  assert(us && us.above === 200 && us.below === 150, `the stored bounds survive a string draft: ${JSON.stringify(us)}`);
+  assert(internals.alertOf(map, { market: 'CRYPTO', symbol: 'AAPL' }) === null, 'another market does not inherit the alert');
+  // A blank or broken entry must not promise a check that can never fire.
+  assert(internals.alertOf({ 'US:X': {} }, { market: 'US', symbol: 'X' }) === null, 'an empty entry is not an alert');
+  assert(internals.alertOf({ 'US:X': { above: '', below: 0 } }, { market: 'US', symbol: 'X' }) === null, 'blank and zero bounds are not alerts');
+  // Inclusivity and the no-quote rule: a stale or failed quote must stay silent.
+  assert(internals.alertHit(200, { above: 200, below: null }) === 'above', 'the upper bound is inclusive');
+  assert(internals.alertHit(150, { above: null, below: 150 }) === 'below', 'the lower bound is inclusive');
+  assert(internals.alertHit(175, { above: 200, below: 150 }) === null, 'a price between the bounds is quiet');
+  assert(internals.alertHit(null, { above: 200, below: 150 }) === null, 'no price never fires');
+  const text = internals.alertBoundsText({ above: 200, below: 150 }, zh, 'USD');
+  assert(text.includes('高于') && text.includes('低于'), `the bound summary reads in the UI language: ${text}`);
+  return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
