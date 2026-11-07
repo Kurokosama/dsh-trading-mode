@@ -649,6 +649,36 @@ await check('position alerts: a loss threshold fires only on a real position', a
   return 'a percent threshold, keyed by market, silent without a position';
 });
 
+await check('price alerts: a dismissed alert stays quiet until the price moves on', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('Dismiss until the price moves 1% further').includes('1%'), 'the dismiss button says what it will take to bring the alert back');
+  // The acknowledgement remembers the level that was dismissed, per bound, and
+  // the map stays market-qualified like every other local note.
+  const map = { 'US:AAPL': { above: '324', loss: '12.5' } };
+  const ack = internals.ackOf(map, { market: 'US', symbol: 'AAPL' });
+  assert(ack && ack.above === 324 && ack.loss === 12.5 && ack.below === null, `an acknowledgement normalises its drafts: ${JSON.stringify(ack)}`);
+  assert(internals.ackOf(map, { market: 'CRYPTO', symbol: 'AAPL' }) === null, 'another market never borrows an acknowledgement');
+  assert(internals.ackOf({ 'US:X': {} }, { market: 'US', symbol: 'X' }) === null, 'an empty acknowledgement silences nothing');
+  const quiet = internals.alertSnoozed;
+  // Still past the bound but barely moved: that is the same news, so it stays quiet.
+  assert(quiet('above', 322, { above: 320 }) === true, 'a price a fraction past the dismissed level stays quiet');
+  assert(quiet('above', 323, { above: 320 }) === true, 'so does one that neither crossed nor moved');
+  // A full point further is a new fact and reopens the banner.
+  assert(quiet('above', 324, { above: 320.5 }) === false, 'a point past the dismissed level speaks up again');
+  assert(quiet('below', 189.5, { below: 190 }) === true, 'a lower bound behaves the same way going down');
+  assert(quiet('below', 187.9, { below: 190 }) === false, 'a real further drop reopens it');
+  // The drawdown is compared in percentage points, not proportions.
+  assert(quiet('loss', 12.5, { loss: 12 }) === true, 'half a point further down is still the same news');
+  assert(quiet('loss', 13.2, { loss: 12 }) === false, 'a point further down reopens it');
+  assert(quiet('loss', 12.5, { above: 320 }) === false, 'an acknowledgement of another bound does not silence this one');
+  assert(quiet(null, 100, { above: 320 }) === false && quiet('above', null, { above: 320 }) === false, 'no hit or no level means nothing is silenced');
+  // The level a hit is measured at: the print for a price, the drawdown in points for a loss.
+  assert(internals.alertLevel('loss', null, { pct: -12.5 }) === 12.5, 'a loss is measured as a positive drawdown');
+  assert(internals.alertLevel('above', { price: 324 }, null) === 324, 'a price bound is measured at the print');
+  assert(internals.alertLevel('above', null, null) === null, 'no print, no level');
+  return 'acknowledgements are per bound and per market, and one point of movement brings the alert back';
+});
+
 await check('positions: a cost basis turns a row into value and open P&L', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-row__flag--pnl') && internals.CSS.includes('.tm-portfolio'), 'the row flag and the card total ship their styles');
