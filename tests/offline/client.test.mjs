@@ -658,6 +658,23 @@ await check('chart: the cost basis is drawn on the price scale, not guessed', as
   return 'cost level ok';
 });
 
+await check('help: the panel can report its own runtime state', async () => {
+  const t = internals.makeT('en');
+  const rows = internals.diagnostics(t);
+  assert(Array.isArray(rows) && rows.length === 3, 'three rows: storage, notifications, window');
+  assert(rows[0].k === 'Storage', 'storage first');
+  assert(['available', 'blocked'].includes(rows[0].v), `storage value, got "${rows[0].v}"`);
+  assert(rows[1].k === 'Notifications', 'notifications second');
+  assert(rows[2].k === 'Window', 'window third');
+  const zh = internals.makeT('zh');
+  const zhRows = internals.diagnostics(zh);
+  assert(zhRows[0].k === '本地存储', `zh storage label, got "${zhRows[0].k}"`);
+  assert(zhRows[2].k === '窗口', 'zh window label');
+  assert(String(internals.TradingApp).includes('diagnostics(t)'), 'the help dialog renders the rows');
+  assert(internals.CSS.includes('.tm-help__key'), 'the key column has its own style');
+  return 'diagnostics covered';
+});
+
 await check('chart: the indicator grid also reads as one sentence', async () => {
   const digest = internals.technicalDigest;
   const t = internals.makeT('en');
