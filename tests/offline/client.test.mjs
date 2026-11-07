@@ -565,6 +565,40 @@ await check('watchlist: the auto refresh toggle states what it will do next', as
   assert(/\.tm-auto--on \{[^}]*--tm-brand/.test(internals.CSS), 'the on state is visible, not just in the title attribute')
 })
 
+await check('detail page: a macro print inside two days is flagged before the reader acts', async () => {
+  const en = internals.makeT('en')
+  const zh = internals.makeT('zh')
+  const note = internals.macroWatchNote
+
+  // The server stamps `days`, so the note never does its own date arithmetic.
+  const today = note([{ kind: 'cpi', date: '2026-11-10', time: '08:30', days: 0 }], en)
+  assert(today && today.when === 'today', 'a release today is called today')
+  assert(today.title === 'US CPI', 'the label comes from the shared macro table')
+  assert(today.detail === 'ET 08:30', 'the release time travels with it')
+  assert(today.impact.includes('re-prices the whole tape'), 'and says what it does to a single name')
+
+  const tomorrow = note([{ kind: 'fomc', date: '2026-11-11', time: '14:00', days: 1 }], en)
+  assert(tomorrow && tomorrow.when === 'tomorrow', 'a release tomorrow is called tomorrow')
+  assert(tomorrow.title === 'FOMC decision', 'FOMC keeps its own label')
+  assert(tomorrow.impact.includes('size new entries'), 'tomorrow warns about sizing, not about today')
+
+  // Three days out is not this decision: the board already lists it.
+  assert(note([{ kind: 'jobs', date: '2026-11-13', time: '08:30', days: 3 }], en) === null, 'a release later in the week is not a note')
+  assert(note([], en) === null, 'an empty table says nothing')
+  assert(note(null, en) === null, 'a failed request says nothing')
+
+  const cn = note([{ kind: 'fomc', date: '2026-11-10', time: '14:00', days: 0 }], zh)
+  assert(cn.when === '今天' && cn.detail === 'ET 14:00', 'the Chinese note keeps the time code')
+  assert(cn.impact.includes('整盘会一起重新定价'), 'and its own impact sentence')
+  assert(zh('Macro day') === '宏观日', 'the label localises')
+
+  const source = String(internals.DetailView)
+  assert(source.includes('/macro?days=7'), 'the detail page reads the local macro table')
+  assert(source.includes('macroWatchNote'), 'and routes it through the shared helper')
+  assert(source.includes('tm-macro'), 'the note has its own line')
+  assert(/\.tm-macro \{[^}]*display: flex/.test(internals.CSS), 'laid out on one baseline')
+})
+
 await check('detail page: the day is read against its sector, not only against yesterday', async () => {
   const zh = internals.makeT('zh')
   const tile = internals.sectorTileOf
