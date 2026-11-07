@@ -129,6 +129,10 @@ can stay reserved for work that is genuinely still open. Each line corresponds t
 
 ## Next
 
+The first six items below are inherited from the upstream multi-market plugin: this fork is
+US-only, single-machine and single-user, so they are recorded as upstream work rather than
+commitments here. The fork's own open items are the last two.
+
 - **More provider coverage per market** — the single highest-value item. A second reachable
   Tokyo history feed would remove the biggest limitation above; additional listing and
   profile feeds would reduce the number of capabilities that depend on one upstream.
@@ -156,3 +160,13 @@ can stay reserved for work that is genuinely still open. Each line corresponds t
 - **Broader storage scope only if the host provides it** — cross-device or shared watchlists
   depend on a host-level service that does not exist today; the plugin will not invent one,
   and will keep documenting the single-machine boundary until it does.
+
+### Fork-specific
+
+- **Component screenshots** — the offline suite renders the real components (event board,
+  rating strip, overview line, chart) through `react-dom/server`, and the same fixtures can be
+  exported to a static page for a capture. Any image added here must say it is a fixture
+  render, not a live panel, because the panel itself needs an authorised `dsh web` URL.
+- **Brief density against a live model** — the rule edition is covered offline, but whether the
+  model-written edition keeps to five observations and three to five conditional ideas can only
+  be checked in a session that has a model configured.
