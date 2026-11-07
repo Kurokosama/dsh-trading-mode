@@ -516,12 +516,16 @@ await check('watchlist: the full card survives a row set and the events header a
   // Regression: the earnings request hook used to be declared AFTER the render
   // code that read it (sort / hasEvents), so any first paint with rows raised
   // "Cannot access 'earnings' before initialization" in the reader's browser.
+  // Push the whole surface at once — a dated earnings payload with a real cost
+  // basis exercises the sort path, the event chip, the weight, the P&L and the
+  // day-money chip in the same paint. A regression in any of these pieces
+  // fails HERE at build time instead of reaching the reader's browser.
   const html = renderToStaticMarkup(
     React.createElement(internals.WatchlistCard, {
       rows,
       onOpen: () => {},
       alerts: {},
-      costs: {},
+      costs: { 'US:AAPL': { price: 200, shares: 2 } },
       onRemove: () => {},
       onFavorite: () => {},
       onMove: () => {},
@@ -532,7 +536,24 @@ await check('watchlist: the full card survives a row set and the events header a
     }),
   );
   assert(html.includes('AAPL'), 'the row carries the ticker');
+  assert(html.includes('+20.00'), `the day money chip prints, got ${html.includes('+100.00')}`);
+  assert(html.includes('tm-row__weight'), 'the weight chip renders for the held row');
   assert(internals.CSS.includes('.tm-since'), 'the card still mounts with its named pieces');
+  // The same paint with a full brief surface (a position marker on a suggestion)
+  const briefHtml = renderToStaticMarkup(
+    React.createElement(internals.BriefCard, {
+      brief: { headline: 'Board 1 up, 1 down — NVDA leads.', suggestions: ['NVDA hold through the report'] },
+      positions: [],
+      held: new Set(['NVDA']),
+      onRun: () => {},
+      loading: false,
+      error: null,
+      aiAvailable: true,
+      aiReason: null,
+      editions: null,
+    }),
+  );
+  assert(briefHtml.includes('Held'), 'a suggestion that lands on a held name carries the marker');
   return 'watchlist card renders ok';
 });
 
