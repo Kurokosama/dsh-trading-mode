@@ -2444,6 +2444,37 @@ await check('theme: every panel surface is painted opaque from the scheme palett
   return `${used.size} alias tokens mapped, ${css.length} CSS chars`;
 });
 
+await check('home: the jump chips point at cards that exist, and the scroll is guarded', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.JUMP_TARGETS.length === 3, 'three jumps: board, calendar, brief');
+  const ids = internals.JUMP_TARGETS.map((entry) => entry[0]);
+  assert(ids.join(',') === 'tm-watchlist-card,tm-events-card,tm-brief-card', `jump ids: ${ids.join(',')}`);
+  // Every id must actually be attached to a card, otherwise the chip is a
+  // dead button — the failure mode this test exists for.
+  assert(String(internals.WatchlistCard).includes("id: 'tm-watchlist-card'"), 'the board card carries its id');
+  assert(String(internals.EventBoard).includes("id: 'tm-events-card'"), 'the calendar card carries its id');
+  assert(String(internals.BriefCard).includes("id: 'tm-brief-card'"), 'the brief card carries its id');
+  // No document.getElementById in this environment: the helper must report
+  // false instead of throwing inside a click handler.
+  assert(internals.jumpTo('tm-brief-card') === false, 'no DOM means no scroll, not a crash');
+  const calls = [];
+  const saved = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === 'tm-brief-card' ? { scrollIntoView: (opts) => calls.push(opts) } : null);
+  try {
+    assert(internals.jumpTo('tm-brief-card') === true, 'a present card scrolls');
+    assert(calls.length === 1 && calls[0].block === 'start' && calls[0].behavior === 'smooth', 'smooth scroll to the top of the card');
+    assert(internals.jumpTo('tm-nope') === false, 'a missing card stays silent');
+  } finally {
+    if (saved === undefined) delete globalThis.document.getElementById;
+    else globalThis.document.getElementById = saved;
+  }
+  assert(zh('Jump to') === '跳到', 'jump label localised');
+  assert(zh('Watchlist') === '自选' && zh('Events') === '事件' && zh('Brief') === '简报', 'chip labels localised');
+  assert(String(internals.CSS).includes('.tm-jump__btn'), 'the chips have their own style');
+  assert(String(internals.HomeView).includes('tm-jump') && String(internals.HomeView).includes('jumpTo('), 'the home page renders the row');
+  return 'three targets, guarded scroll, labels localised';
+});
+
 console.log(`\n== summary ==\n  ${passed}/${passed + failed} checks passed, ${failed} failed`);
 report({ title: 'client', required: true, passed, failed, skipped: 0, skipReasons: [], failures: failures.slice(), ok: failed === 0 });
 if (failures.length) {
