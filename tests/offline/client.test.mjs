@@ -796,6 +796,9 @@ await check('panel: a rendering failure leaves an explainer, not a blank page', 
   assert(html.includes('Trading Mode failed to render'), 'the fallback names the failure');
   assert(html.includes('boom message'), 'the browser message is shown, not swallowed');
   assert(html.includes('Reload the panel'), 'the way out is offered');
+  assert(html.includes('Copy this message'), 'the report can leave the machine by clipboard');
+  assert(String(internals.CrashBoundary).includes("[trading-mode panel] "), 'the report is tagged so a pasted text identifies its origin');
+  assert(internals.ZH['Copy this message'] === '复制这段文字', 'copy label localises');
   assert(internals.ZH['Trading Mode failed to render'] === '交易模式渲染失败', 'zh title ships');
   const clean = renderToStaticMarkup(React.createElement(internals.CrashBoundary, { t: internals.makeT('en') }, React.createElement('b', null, 'ok')));
   assert(clean.includes('<b>ok</b>') && !clean.includes('tm-crash'), 'a healthy child passes through untouched');
