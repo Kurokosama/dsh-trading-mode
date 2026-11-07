@@ -1597,6 +1597,26 @@ await check('brief: an action idea says whether it lands on a position you hold'
   assert(String(internals.CSS).includes('.tm-brief__hold'), 'the marker is styled');
 });
 
+await check('brief: the positions ride into the analyze POST', async () => {
+  const rows = [
+    { symbol: 'NVDA', market: 'US', quote: { price: 100, changePct: 1.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+    { symbol: 'MSFT', market: 'US', quote: { price: 300, changePct: 0.2, currency: 'USD', timestamp: '2026-11-07T15:00:00Z' } },
+  ];
+  const costs = { 'US:NVDA': { price: 80, shares: 10 }, 'US:MSFT': { price: 300, shares: 0 } };
+  const book = internals.heldPositions(rows, costs);
+  assert(Array.isArray(book) && book.length === 1, 'only real positions ride along');
+  assert(book[0].symbol === 'NVDA' && book[0].shares === 10, 'shares and symbol survive');
+  assert(book[0].value === 1000 && book[0].currency === 'USD', 'value and currency ride with the row');
+  assert(internals.heldPositions([], null).length === 0, 'no rows means an empty book, not junk');
+  const source = String(internals.HomeView);
+  assert(
+    source.includes("positions: heldPositions(rows, costs)"),
+    'the post body carries the book',
+  );
+  assert(String(internals.HomeView).includes('[lang, rows, costs]'), 'the run brief re-arms when the book changes');
+  return 'sanitised positions ride into the analyze POST';
+});
+
 await check('extended hours: a pre or post print rides the row and the detail header', async () => {
   const zh = internals.makeT('zh');
   const en = internals.makeT('en');

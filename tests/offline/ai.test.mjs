@@ -24,6 +24,7 @@ import {
   localBrief,
   normalizeBrief,
   qualityFor,
+  readerBook,
   recencyOf,
 } from '../../lib/trading/ai.js';
 
@@ -914,6 +915,44 @@ await check('1.1: a defensive tape frames every row before the row-level ideas',
     assert.equal('sectors' in buildBriefInput({ stocks: [] }) && buildBriefInput({ stocks: [] }).sectors, undefined);
     assert.match(BRIEF_STYLE_DIRECTIVE, /sectors: an optional read-only board backdrop/i);
     return 'sector context passes through only with a numeric day change';
+  });
+
+  await check("the reader's book rides into the input and its rule edition", () => {
+    // The gate the round built: nothing malformed ever reaches the brief.
+    assert.equal(readerBook(null), null, 'nothing sent means nothing attached');
+    assert.equal(readerBook([]), null);
+    const book = readerBook([
+      { symbol: 'nvda', shares: 10, cost: 80, value: 1000, pnl: 200, today: 120, currency: 'USD' },
+      { symbol: 'AAPL', shares: 2, cost: 200.004, value: 'x', pnl: 'y', today: 'z' },
+      { symbol: 'THISISALONGSYMBOL', shares: 1, cost: 1 },
+      { symbol: 'MSFT', shares: 0, cost: 300 },
+      { symbol: 'GOOG', cost: 100 },
+      { symbol: 'NVDA', shares: 3, cost: 99 },
+      'junk',
+      { symbol: 'USD!!!!!', shares: 1, cost: 1 },
+      { symbol: 'KO', shares: 4, cost: 60, currency: 'usd' },
+    ], 3);
+    assert.deepEqual(book.map((row) => row.symbol), ['NVDA', 'AAPL', 'KO'], 'cap, junk, dupes and zero shares all handled');
+    assert.equal(book[2].currency, 'USD', 'a lowercase still-valid currency is normalised, not junked');
+    assert.equal(book[0].shares, 10);
+    assert.equal(book[0].currency, 'USD');
+    assert.equal(book[1].value, 400.01, 'value defaults to shares × cost');
+    assert.equal(book[1].pnl, 0, 'pnl defaults to value − basis');
+    assert.equal(book[1].today, null, 'a missing today stays null, not zero');
+
+    const input = buildBriefInput(
+      { stocks: [{ symbol: 'NVDA', quote: { price: 100, changePct: 5, change: 5 }, technical: { technical: {} } }] },
+      [{ symbol: 'NVDA', shares: 10, cost: 80, today: 120, currency: 'USD' }],
+    );
+    assert.ok(Array.isArray(input.positions) && input.positions[0].symbol === 'NVDA', 'the book rides into the brief input');
+    assert.equal(input.positions[0].value, 800, 'a missing value is computed, not dropped');
+    assert.equal(buildBriefInput({ stocks: [] }).positions, null, 'no reader means the field is absent, not an empty array');
+
+    const rule = localBrief(input, 'en');
+    assert.match(rule.keyObservations[0], /You hold 1 position, worth USD 800\.00 — \+120\.00 today/, 'the rule edition opens with the book');
+    const zh = localBrief(input, 'zh');
+    assert.match(zh.keyObservations[0], /持有 1 个仓位，账面 USD 800\.00，今日 \+120\.00/);
+    return 'sanitised book in, book line out, nothing invented';
   });
 
   await check('the brief can be written without a model, and it says so', () => {

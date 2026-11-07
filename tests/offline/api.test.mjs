@@ -493,6 +493,34 @@ await suite.check('the AI brief reads the caller\'s rows and rejects an empty li
   return 'brief uses the caller rows';
 });
 
+await suite.check('brief: the posted positions arrive sanitised or not at all', async () => {
+  const { api, ai } = buildApi({ user: 'local-1' });
+  await call(api, { method: 'POST', url: '/api/trading/watchlist', body: { symbol: 'AAPL' } });
+  const posted = await call(api, { method: 'POST', url: '/api/trading/watchlist/analyze', body: {
+    lang: 'en',
+    positions: [
+      { symbol: 'nvda', shares: 10, cost: 80, today: 120, currency: 'USD' },
+      { symbol: 'AAPL', shares: 1, cost: 200, value: 'ox-cart', pnl: 'nope', currency: 'usd!!!!' },
+      { symbol: 'JUNK!!', shares: 3, cost: 5 },
+      { symbol: 'ZERO', shares: 0, cost: 12 },
+      'junk',
+    ],
+  } });
+  assert.equal(posted.status, 200, JSON.stringify(posted.payload));
+  assert.equal(ai.briefs.length, 1);
+  const reader = ai.briefs[0].snapshot.reader;
+  assert.ok(Array.isArray(reader) && reader.length === 2, `junk rows are dropped, got ${JSON.stringify(reader)}`);
+  assert.equal(reader[0].symbol, 'NVDA');
+  assert.equal(reader[0].currency, 'USD');
+  assert.equal(reader[1].value, 200, 'a bogus value is recomputed from shares × cost');
+  assert.equal(reader[1].currency, 'USD', 'a currency sized outside [A-Z]{2,4} defaults');
+  // Nothing sent = the field is absent, never an empty array.
+  const clean = await call(api, { method: 'POST', url: '/api/trading/watchlist/analyze', body: { lang: 'en' } });
+  assert.equal(clean.status, 200);
+  assert.equal(ai.briefs[1].snapshot.reader, null, 'no positions means the field is absent');
+  return 'sanitised book on the route, absent when the reader sends nothing';
+});
+
 await suite.check('brief: without a model the caller still gets a rule edition', async () => {
   const { api, ai } = buildApi({ user: 'local-1' });
   await call(api, { method: 'POST', url: '/api/trading/watchlist', body: { symbol: 'AAPL' } });
