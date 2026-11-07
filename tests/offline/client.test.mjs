@@ -504,6 +504,12 @@ await check('home: the jump chip carries the week it is asking you to look at', 
   assert(internals.CSS.includes('.tm-jump__n'), 'the badge has its own hook');
   assert(internals.ZH['{n} in the next seven days'] === '未来七天 {n} 件', 'the tooltip is localised');
   return 'jump badge ok';
+
+  // The home page pairs its two context rows side by side on a wide panel.
+  assert(home.split("className: 'tm-pair'").length === 3, 'two rows share a pair grid');
+  assert(internals.CSS.includes('.tm-pair'), 'the pair grid is styled');
+  assert(internals.CSS.includes('@media (min-width: 1000px)'), 'pairing only starts on a wide panel');
+
 });
 
 await check('watchlist: the full card survives a row set and the events header asks its question', async () => {
