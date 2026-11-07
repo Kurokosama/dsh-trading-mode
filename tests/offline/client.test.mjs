@@ -352,6 +352,25 @@ await check('§31 technical grid maps every required indicator', async () => {
   return `${cells.length} cells`;
 });
 
+await check('brief: a long book is summarised, not dropped or stacked', async () => {
+  const cap = internals.capPositions;
+  const many = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const five = cap(many);
+  assert(five.shown.length === 5 && five.hidden === 2, 'five shown, the rest counted');
+  assert(cap(['a']).hidden === 0, 'a short book hides nothing');
+  assert(cap([]).shown.length === 0, 'empty stays empty');
+  assert(cap(null).hidden === 0, 'no list is not an error');
+  assert(cap(many, 2).shown.length === 2, 'the cap is honoured when asked for');
+  assert(internals.ZH['{n} more positions'] === '另有 {n} 个持仓（导出里是全量）', 'the tail is localised');
+  assert(String(internals.BriefCard).includes('capPositions(positions)'), 'the card caps its own list');
+  const t = internals.makeT('en');
+  const text = internals.briefLines({ headline: 'Board up.' }, many, t, 'en').join('\n');
+  assert(text.includes('b') && !text.includes('- g'), 'the copied text stops at the cap');
+  assert(text.includes('2 more positions'), 'and says how many it left out');
+  assert(internals.CSS.includes('.tm-brief__more'), 'the tail line has its own hook');
+  return 'position cap ok';
+});
+
 await check('detail: the header says when this page is already a position', async () => {
   const badge = internals.holdingBadge;
   assert(badge({ price: 180, shares: 12 }).shares === 12, 'a real position comes back');
