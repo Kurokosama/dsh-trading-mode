@@ -15,7 +15,7 @@ says so instead of guessing.
 
 ## Who this applies to
 
-This document covers the plugin `dsh-trading-mode` version 0.8.1 as shipped in this
+This document covers the plugin `dsh-trading-mode` version 1.0 (the US-only fork build) as shipped in this
 repository: the host half (`lib/index.js`, `lib/trading/*.js`) and the browser half
 (`lib/client.js`). It does not cover DSH itself, the market data providers, or the model
 provider you configure in DSH; each has its own terms and its own privacy policy.
@@ -96,7 +96,7 @@ Two kinds of user data are stored, both local to this machine and this DSH profi
 - preferences, which as of 0.8.0 are the interface language only (`lang` is `en` or `zh`,
   plus an `updatedAt` timestamp) stored per user id.
 
-The panel also offers a colour scheme (black-on-white / white-on-black, 0.8.1). That choice is
+The panel also offers a colour scheme (black-on-white / white-on-black). That choice is
 **not** stored by this plugin: when the host exposes its client `theme` service the panel asks
 that service to set the DSH theme preference (`setTheme('dark' | 'light')`), so the value lives
 in DSH's own theme settings and is covered by DSH's privacy policy. Without that service the
@@ -159,15 +159,16 @@ provider id, and each has a fixed host or hosts:
 
 | Provider id | Host(s) | What it is used for |
 | --- | --- | --- |
-| `yahoo` | `query1.finance.yahoo.com`, `fc.yahoo.com` | US and HK quotes, charts, profiles, search |
-| `stooq` | `stooq.com` | US and HK end-of-day candles |
-| `eastmoney` | `push2.eastmoney.com`, `push2his.eastmoney.com`, `searchapi.eastmoney.com`, and up to six numbered `push2*.eastmoney.com` mirrors per request | US, HK, CN and JP quotes and candles |
-| `tencent` | `qt.gtimg.cn`, `web.ifzq.gtimg.cn` | US, HK, CN and JP quotes and candles |
-| `sina` | `stock.finance.sina.com.cn`, `vip.stock.finance.sina.com.cn`, `money.finance.sina.com.cn` | US, HK and CN quotes, candles and listings |
-| `nasdaq` | `api.nasdaq.com` | US listing directory |
-| `binance` | `data-api.binance.vision` | crypto quotes and candles |
-| `gate` | `api.gateio.ws` | crypto quotes, candles and pair directory |
-| `coinlore` | `api.coinlore.net` | crypto directory (names), never used to answer a quote |
+| `yahoo` | `query1.finance.yahoo.com`, `fc.yahoo.com` | US quotes, charts, profiles |
+| `stooq` | `stooq.com` | US end-of-day candles |
+| `nasdaq` | `api.nasdaq.com` | US listing directory and the earnings calendar |
+
+Besides the chain above, two feature upstreams answer individual cards rather
+than the quote chain: `ec.nasdaq.com` (Nasdaq's earnings calendar page, feeding
+the event reminders card and the brief's earnings warnings) and `data.sec.gov`
+(SEC EDGAR `companyfacts`, feeding the fundamentals card in the detail view).
+Both are standard public unauthenticated GETs and are also listed in
+[DATA_SOURCES.md](DATA_SOURCES.md).
 
 What is sent is limited to the lookup itself: a symbol or a search term, an interval, a
 range, a page or a limit, and for a couple of providers a referer header that the provider
@@ -340,7 +341,8 @@ your data.
 
 ## Changes to this document
 
-This document describes plugin version 0.8.1 and is versioned with it. When a release
+This document describes plugin version 1.0 (the US-only fork build) and is
+versioned with the fork. When a release
 changes what the plugin stores, where it sends data, or that it sends certain data at all,
 this document is expected to be updated in the same release and the plugin version here
 updated to match. If this file's version does not match the installed plugin version, treat
