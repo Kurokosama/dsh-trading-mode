@@ -1142,6 +1142,18 @@ await check('news: the home card speaks for the holdings, not the whole market',
   return 'the holdings feed card is styled and localised'
 });
 
+await check('news: a watchlist without positions still gets its feed', () => {
+  const zhT = internals.makeT('zh');
+  assert(zhT('Headlines on your watchlist') === '自选新闻', 'the fallback title is localised');
+  assert(source.includes('const watching = held.length'), 'positions are still preferred');
+  assert(source.includes('.slice(0, 6)'), 'the fallback feed stays at six names');
+  assert(
+    source.includes("held.length ? tr('Headlines on your positions') : tr('Headlines on your watchlist')"),
+    'the title says which list it is reading',
+  );
+  return 'fallback feed wired';
+});
+
 await check('news: the ticker in a headline opens that name, the headline stays a link', () => {
   const css = internals.CSS
   const zh = internals.makeT('zh')
