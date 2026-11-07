@@ -465,7 +465,29 @@ await check('company profile for AAPL (US-only build)', async () => {
         assert.ok(year >= 2024 && year <= 2028, `ex-dividend year plausible (got ${year})`);
         exDivLabel = new Date(exDiv).toISOString().slice(0, 10);
       }
-      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'}) exDiv=${exDivLabel}`);
+      // Sell-side consensus: coverage, a range that contains its own mean, and
+      // a rating on Yahoo's 1–5 scale. Funds answer an empty block, so this is
+      // asserted only when the block is present.
+      const a = out.data.analysts;
+      let analystLabel = 'none';
+      if (a) {
+        if (a.count != null) assert.ok(a.count > 0 && a.count < 200, `analyst count sane (got ${a.count})`);
+        if (a.ratingMean != null) assert.ok(a.ratingMean > 0 && a.ratingMean <= 5, `rating mean on 1–5 (got ${a.ratingMean})`);
+        if (a.targetLow != null && a.targetHigh != null && a.targetMean != null) {
+          assert.ok(a.targetLow <= a.targetMean && a.targetMean <= a.targetHigh, `mean target inside its range (got ${a.targetLow}/${a.targetMean}/${a.targetHigh})`);
+        }
+        analystLabel = `${a.rating}@${a.ratingMean} n=${a.count} target=${a.targetMean}`;
+      }
+      // Growth and margins are converted from fractions to percent in
+      // makeProfile; a leftover fraction would read as 0.12% growth.
+      const st = out.data.stats;
+      let statsLabel = 'none';
+      if (st) {
+        if (st.netMargin != null) assert.ok(st.netMargin > -200 && st.netMargin < 100, `net margin in percent (got ${st.netMargin})`);
+        if (st.revenueGrowth != null) assert.ok(st.revenueGrowth > -100 && st.revenueGrowth < 300, `revenue growth in percent (got ${st.revenueGrowth})`);
+        statsLabel = `fwdPE=${st.forwardPe} net=${st.netMargin}% rev=${st.revenueGrowth}%`;
+      }
+      names.push(`${symbol}=${out.data.name} industry=${out.data.industry} (${out.data.nameZh || '-'}) exDiv=${exDivLabel} analysts=${analystLabel} ${statsLabel}`);
     } catch (err) {
       const gap = upstreamGap(err);
       if (!gap) throw err;

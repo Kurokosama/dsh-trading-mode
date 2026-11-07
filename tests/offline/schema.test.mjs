@@ -128,3 +128,48 @@ test('schema: no holdings input keeps the field empty rather than fabricating ro
   assert.equal(p.holdings, undefined)
 })
 
+
+test('schema: the analyst consensus keeps its range and needs coverage', () => {
+  const p = makeProfile({
+    symbol: 'AAPL',
+    market: 'US',
+    name: 'Apple',
+    analysts: { targetMean: 332.6836, targetHigh: 405, targetLow: 250, rating: 'buy', ratingMean: 2.25, count: 39 },
+  })
+  assert.deepEqual(p.analysts, { targetMean: 332.6836, targetHigh: 405, targetLow: 250, rating: 'buy', ratingMean: 2.25, count: 39 })
+
+  // A range with the ends crossed, or missing one of them, would put the mean
+  // marker outside its own band — drop the pair instead of drawing nonsense.
+  const crossed = makeProfile({ symbol: 'X', market: 'US', name: 'X', analysts: { targetMean: 10, targetHigh: 5, targetLow: 8, count: 3 } })
+  assert.equal(crossed.analysts.targetHigh, null)
+  assert.equal(crossed.analysts.targetLow, null)
+  assert.equal(crossed.analysts.targetMean, 10)
+
+  // Funds answer an empty block; a stray rating with nobody behind it is not a
+  // consensus and must not render as "0 analysts · Hold".
+  assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO', analysts: { rating: 'hold' } }).analysts, undefined)
+  assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO', analysts: {} }).analysts, undefined)
+  assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO' }).analysts, undefined)
+  // A fractional count is rounded rather than printed as 38.5 analysts.
+  assert.equal(makeProfile({ symbol: 'X', market: 'US', name: 'X', analysts: { count: 38.6, targetMean: 20 } }).analysts.count, 39)
+})
+
+test('schema: growth and margin ratios arrive as fractions and leave as percent', () => {
+  const p = makeProfile({
+    symbol: 'AAPL',
+    market: 'US',
+    name: 'Apple',
+    stats: { forwardPe: 32.15, priceToBook: 44.39, beta: 1.089, revenueGrowth: 0.117, earningsGrowth: 0.141, grossMargin: 0.48786, netMargin: 0.27604, returnOnEquity: 1.42257, shortFloat: 0.0091 },
+  })
+  assert.equal(p.stats.revenueGrowth, 11.7)
+  assert.equal(p.stats.earningsGrowth, 14.1)
+  assert.equal(p.stats.grossMargin, 48.786)
+  assert.equal(p.stats.netMargin, 27.604)
+  assert.equal(p.stats.returnOnEquity, 142.257)
+  assert.equal(p.stats.shortFloat, 0.91)
+  assert.equal(p.stats.forwardPe, 32.15)
+  assert.equal(p.stats.beta, 1.089)
+  // Nothing usable means no card, not a grid of dashes.
+  assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO', stats: {} }).stats, undefined)
+  assert.equal(makeProfile({ symbol: 'VOO', market: 'US', name: 'VOO' }).stats, undefined)
+})

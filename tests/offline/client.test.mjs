@@ -531,6 +531,30 @@ await check('ex-dividend day: a UTC calendar date, never shifted into the previo
   return 'UTC date + label + countdown rules hold';
 });
 
+await check('analyst view: a consensus band, and every rating label localises', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-arb__track') && internals.CSS.includes('.tm-arb__pin'), 'the consensus band ships its CSS');
+  assert(zh('Analyst view') === '分析师观点', 'the card title localises');
+  assert(zh('Mean target') === '平均目标价', 'the target cell localises');
+  assert(zh('Upside') === '上行空间', 'the upside cell localises');
+  assert(zh('analysts') === '位分析师', 'the coverage meta localises');
+  // Yahoo's five recommendation keys arrive in English and must all resolve,
+  // otherwise the badge reads "strong_buy" to a Chinese reader.
+  const labels = ['Strong buy', 'Buy', 'Hold', 'Underperform', 'Sell'];
+  const missing = labels.filter((label) => /[\u4e00-\u9fff]/.test(zh(label)) === false);
+  assert(missing.length === 0, `untranslated ratings: ${missing.join(', ')}`);
+  return 'consensus band CSS + 5/5 rating labels localise';
+});
+
+await check('fundamentals: the growth and margin grid localises every row', async () => {
+  const zh = internals.makeT('zh');
+  assert(zh('Fundamentals') === '基本面', 'the card title localises');
+  const rows = ['Forward P/E', 'Price/Book', 'Beta', 'Revenue growth', 'Earnings growth', 'Gross margin', 'Net margin', 'Return on equity', 'Short float'];
+  const missing = rows.filter((row) => /[\u4e00-\u9fff]/.test(zh(row)) === false);
+  assert(missing.length === 0, `untranslated rows: ${missing.join(', ')}`);
+  return '9/9 fundamentals labels localise';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
