@@ -474,7 +474,12 @@ await check('brief: the last edition survives a reload, but not a language switc
   try {
     const brief = { headline: 'Board 3 up, 1 down.', stocksTracked: 4, upCount: 3, downCount: 1, suggestions: ['AAPL holds 210.'] };
     assert(internals.readBriefCache('en') === null, 'an empty store has no brief');
-    assert(internals.writeBriefCache(brief, 'en') === true, 'a valid brief is kept');
+    const sectors = [{ symbol: 'XLK', changePct: 1.2 }];
+    assert(internals.writeBriefCache(brief, 'en', sectors) === true, 'a valid brief is kept');
+    const keptSectors = internals.readBriefSectors('en');
+    assert(keptSectors && keptSectors[0].symbol === 'XLK', 'the sector strip comes back with the text');
+    assert(internals.readBriefSectors('zh') === null, 'another language has no sector strip either');
+    assert(internals.readBriefSectors(null) === null, 'no language, no sectors');
     const back = internals.readBriefCache('en');
     assert(back && back.headline === brief.headline, 'the same language reads it back');
     assert(internals.readBriefCache('zh') === null, 'another language starts empty');
