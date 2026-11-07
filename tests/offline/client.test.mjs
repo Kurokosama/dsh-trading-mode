@@ -565,6 +565,32 @@ await check('watchlist: the auto refresh toggle states what it will do next', as
   assert(/\.tm-auto--on \{[^}]*--tm-brand/.test(internals.CSS), 'the on state is visible, not just in the title attribute')
 })
 
+await check('events: an earnings date on a name you hold is priced, not just dated', async () => {
+  const zh = internals.makeT('zh')
+  const quote = (price) => ({ price, change: 1, changePct: 1, currency: 'USD' })
+  const watch = [
+    { symbol: 'MSFT', market: 'US', quote: quote(100) },
+    { symbol: 'AAPL', market: 'US', quote: quote(200) },
+  ]
+  const costs = { 'US:MSFT': { price: 50, shares: 12 } }
+  const index = internals.positionIndex(watch, costs)
+  assert(index.size === 1, 'only the held name enters the index')
+  assert(index.get('MSFT').value === 1200, 'value is the last price times shares')
+  assert(index.get('MSFT').currency === 'USD', 'and keeps the quote currency')
+
+  // A watch-only name has a date but no money attached: it must stay absent
+  // rather than appear with a zero, which would read as a broken position.
+  assert(index.has('AAPL') === false, 'a watched but unheld name is not an exposure')
+  assert(internals.positionIndex([], costs).size === 0, 'empty board, empty index')
+  assert(internals.positionIndex(null, null).size === 0, 'no inputs, no index')
+
+  assert(zh('You hold {amount}', { amount: '$1,200.00' }) === '你持有 $1,200.00', 'the exposure line localises')
+  const board = String(internals.EventBoard)
+  assert(board.includes('positionIndex(watchRows'), 'the board indexes exposures from its own rows')
+  assert(board.includes("t('You hold {amount}'"), 'and names the amount on the row')
+  assert(/\.tm-ev__held \{[^}]*font-weight: 600/.test(internals.CSS), 'the amount is emphasised inside the muted impact line')
+})
+
 await check('detail page: the position line turns the yield into money the holder receives', async () => {
   const zh = internals.makeT('zh')
   const income = internals.dividendIncome
