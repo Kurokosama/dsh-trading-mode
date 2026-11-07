@@ -500,6 +500,10 @@
 
 ### 修复
 
+- **自选卡首屏不再因「财报排序」整卡崩溃**：渲染代码在财报请求钩子声明之前就引用了它——本地存过
+  「按财报排序」的读者一打开就整卡抛 `Cannot access 'earnings' before initialization`，崩溃兜底把
+  它变成错误卡（即白屏一类报障的真实来源）。钩子已挪到排序与统计计算之前，并新增「带行渲染整卡」的
+  回归测试把这个声明顺序锁死（先把钩子挪回去验证测试真的会红）。
 - **财报日历路由从未接上导入**：`lib/trading/api.js` 调用 `earningsCalendar()` 却没有从 `calendar.js`
   导入，`GET /earnings` 每次都在运行时抛 `ReferenceError`，简报里的「财报临近」也因 try/catch 静默降级。
   现在补上导入，并新增一条离线路由测试（patch 掉 `EarningsCalendar.prototype.window`，不走网络），

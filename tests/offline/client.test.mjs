@@ -506,6 +506,36 @@ await check('home: the jump chip carries the week it is asking you to look at', 
   return 'jump badge ok';
 });
 
+await check('watchlist: the full card survives a row set and the events header asks its question', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, change: 10, changePct: 5 } },
+    { symbol: 'NVDA', market: 'US', quote: { price: 100, change: -2, changePct: -2 } },
+  ];
+  // Regression: the earnings request hook used to be declared AFTER the render
+  // code that read it (sort / hasEvents), so any first paint with rows raised
+  // "Cannot access 'earnings' before initialization" in the reader's browser.
+  const html = renderToStaticMarkup(
+    React.createElement(internals.WatchlistCard, {
+      rows,
+      onOpen: () => {},
+      alerts: {},
+      costs: {},
+      onRemove: () => {},
+      onFavorite: () => {},
+      onMove: () => {},
+      onRefresh: () => {},
+      loading: false,
+      error: null,
+      identity: null,
+    }),
+  );
+  assert(html.includes('AAPL'), 'the row carries the ticker');
+  assert(internals.CSS.includes('.tm-since'), 'the card still mounts with its named pieces');
+  return 'watchlist card renders ok';
+});
+
 await check('watchlist: what changed while the panel was closed is named', async () => {
   const prev = { at: 1762480000000, rows: { AAPL: 100, NVDA: 200, MSFT: 300 } };
   const rows = [
