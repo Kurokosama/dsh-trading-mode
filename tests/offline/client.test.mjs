@@ -694,6 +694,44 @@ await check('positions: the list sorts by open P&L, and a row that is no positio
   return 'open P&L sorts per row and unheld rows sink rather than rank as flat';
 });
 
+await check('brief: the local cost basis adds its own lines, and only above a threshold', () => {
+  const t = internals.makeT('zh');
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, currency: 'USD' } },
+    { symbol: 'NVDA', market: 'US', quote: { price: 180, currency: 'USD' } },
+    { symbol: 'VOO', market: 'US', quote: { price: 650, currency: 'USD' } },
+  ];
+  const costs = {
+    'US:AAPL': { price: 180, shares: 10 },
+    'US:NVDA': { price: 205, shares: 5 },
+    'US:VOO': { price: 640, shares: 1 },
+  };
+  const notes = internals.positionNotes(rows, costs, t);
+  assert(notes.length === 2, `one line for the biggest move, one for the pool (got ${notes.length})`);
+  assert(notes[0].includes('AAPL') && notes[0].includes('+16.7%'), `the winner is named with its move (got ${notes[0]})`);
+  assert(notes[0].includes('$180.00') && notes[0].includes('$210.00'), 'cost and last trade are both shown');
+  assert(notes[0].includes('→'), 'the pair reads as a transition');
+  // Basis 3465, open P&L +185 (AAPL +300, NVDA −125, VOO +10) → +5.3% across three.
+  assert(notes[1].includes('3 只持仓') && notes[1].includes('+5.3%'), `the pool is summed (got ${notes[1]})`);
+  assert(notes[1].includes('+$185.00'), `the pool carries the money too (got ${notes[1]})`);
+  // A single quiet position (1.6%) earns nothing: the block must not turn into a
+  // restatement of every row.
+  assert(internals.positionNotes(rows.slice(2), costs, t).length === 0, 'a quiet single position says nothing');
+  assert(internals.positionNotes(rows, {}, t).length === 0, 'no cost basis, no line');
+  // Currency pools never mix: one big winner, but a lone HKD position makes no pool.
+  const mixed = internals.positionNotes(
+    [
+      { symbol: 'AAPL', market: 'US', quote: { price: 210, currency: 'USD' } },
+      { symbol: '0700', market: 'US', quote: { price: 400, currency: 'HKD' } },
+    ],
+    { 'US:AAPL': { price: 180, shares: 10 }, 'US:0700': { price: 380, shares: 5 } },
+    t,
+  );
+  assert(mixed.length === 1, `no cross-currency pool (got ${mixed.length})`);
+  assert(internals.CSS.includes('.tm-brief__block--own'), 'the local block is visually separated');
+  assert(t('Your positions (local)') === '你的持仓（本地）', 'the block is labelled in zh');
+});
+
 await check('news: headlines are dated, linked, and localised', () => {
   const I = internals
   const CSS = I.CSS
