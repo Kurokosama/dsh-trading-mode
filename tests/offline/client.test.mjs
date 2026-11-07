@@ -624,6 +624,30 @@ await check('price alerts: bounds are per market, and only a real price fires th
   return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
 });
 
+await check('alerts: the history leaves the panel as plain lines', () => {
+  const zh = internals.makeT('zh');
+  const when = Date.UTC(2026, 10, 6, 21, 4, 0);
+  const lines = internals.alertLogText(
+    [
+      { key: 'US:NVDA', symbol: 'NVDA', hit: 'down', pct: -5.42, at: when },
+      { key: 'US:AAPL', symbol: 'AAPL', hit: 'above', level: 320, currency: 'USD', at: when - 60000 },
+      null,
+    ],
+    zh,
+  );
+  assert(lines.length === 2, `null rows are dropped, got ${JSON.stringify(lines)}`);
+  assert(lines[0].includes('NVDA'), `symbol present, got ${lines[0]}`);
+  assert(lines[0].includes('\u00b7'), `fields are separated, got ${lines[0]}`);
+  assert(lines[0].includes('\u4eca\u65e5'), `the reason matches the row, got ${lines[0]}`);
+  assert(lines[0].split(' \u00b7 ').length === 3, `when, symbol, reason: ${lines[0]}`);
+  assert(lines[1].includes('320'), `a price bound keeps its number, got ${lines[1]}`);
+  assert(internals.alertLogText(null, zh).length === 0, 'no history, no text');
+  assert(internals.alertLogText([], zh).length === 0, 'empty history, no text');
+  assert(internals.CSS.includes('.tm-alog__acts'), 'the footer groups its buttons');
+  assert(zh('Copy history') === '\u590d\u5236\u8bb0\u5f55', 'the button is localised');
+  assert(zh('Copy the alert history as plain text').includes('\u7eaf\u6587\u672c'), 'so is its tooltip');
+});
+
 await check('alerts: the history keeps what fired, newest first, without repeating itself', async () => {
   const zh = internals.makeT('zh');
   const CSS = internals.CSS;
