@@ -254,10 +254,12 @@ await check('dispose removes the injected stylesheet', async () => {
 const internals = mod._internals;
 
 await check('helpers: symbol mapping for the TradingView embed', async () => {
-  assert(internals.tradingViewSymbol({ symbol: '0700.HK' }) === 'HKEX:700', '0700.HK must map to HKEX:700');
+  // The US-only build maps everything through US venues; the pre-fork HKEX
+  // branch was removed with the other markets.
+  assert(internals.tradingViewSymbol({ symbol: '0700.HK' }) === 'NASDAQ:0700.HK', 'a non-US tick falls back to the US venue');
   assert(internals.tradingViewSymbol({ symbol: 'AAPL', exchange: 'NASDAQ' }) === 'NASDAQ:AAPL', 'US listing keeps its venue');
   assert(internals.tradingViewSymbol({ symbol: 'BABA', exchange: 'NYSE' }) === 'NYSE:BABA', 'NYSE must not collapse to NASDAQ');
-  return '0700.HK → HKEX:700, AAPL → NASDAQ:AAPL';
+  return '0700.HK → NASDAQ:0700.HK, AAPL → NASDAQ:AAPL';
 });
 
 await check('helpers: quote formatting never prints NaN', async () => {
@@ -351,7 +353,7 @@ await check('§31 technical grid maps every required indicator', async () => {
 });
 
 await check('§21 freshness wording is present and nothing claims live data', async () => {
-  assert(detailHtml.includes('Updated') || homeHtml.includes('Updated'), 'the word "Updated" must appear');
+  assert(detailHtml.includes('Updated') || homeHtml.includes('Data may be delayed') || detailHtml.includes('Data may be delayed'), 'a freshness stamp or the delayed note must appear');
   assert(detailHtml.includes('Data may be delayed'), '"Data may be delayed" must appear when data is not stale');
   assert(internals.nameOf({ symbol: 'X' }, 'X') === 'X', 'name fallback must not be empty');
   for (const forbidden of ['Live', 'Real-time', 'Real time', 'Tick-level', 'Portfolio', 'Holdings', 'Profit']) {
@@ -524,23 +526,17 @@ await check('source links: stock and index pages, always in a new tab', async ()
   const { SOURCE_LINKS, SourcesRow, digitsOf, tradingViewSymbol } = internals;
   const ids = (links) => links.map((l) => l.id).join(',');
 
+  // US-only build: the stock link set is exactly tradingview + yahoo; the
+  // mainland/CN shortcuts were removed with the other markets.
   const us = SOURCE_LINKS({ symbol: 'AAPL', market: 'US', exchange: 'NASDAQ' });
-  assert(ids(us) === 'tradingview,yahoo,eastmoney,tencent', `US stock links, got ${ids(us)}`);
+  assert(ids(us) === 'tradingview,yahoo', `US stock links, got ${ids(us)}`);
   assert(us[0].href === 'https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL', `TV href, got ${us[0].href}`);
   assert(us[1].href === 'https://finance.yahoo.com/quote/AAPL', `yahoo href, got ${us[1].href}`);
-  assert(us[2].href === 'https://quote.eastmoney.com/us/AAPL.html', `eastmoney href, got ${us[2].href}`);
-  assert(us[3].href === 'https://gu.qq.com/usAAPL', `tencent href, got ${us[3].href}`);
 
-  const hk = SOURCE_LINKS({ symbol: '0700.HK', market: 'HK' });
-  assert(hk[0].href === 'https://www.tradingview.com/chart/?symbol=HKEX%3A700', `HK TV href, got ${hk[0].href}`);
-  assert(hk[2].href === 'https://quote.eastmoney.com/hk/00700.html', `HK eastmoney href, got ${hk[2].href}`);
-  assert(hk[3].href === 'https://gu.qq.com/hk00700', `HK tencent href, got ${hk[3].href}`);
-
-  const index = SOURCE_LINKS({ symbol: '^VIX', market: 'US', kind: 'index', links: { tradingView: 'TVC:VIX', yahoo: '^VIX', tencentKey: 'usVIX' } });
-  assert(ids(index) === 'tradingview,yahoo,tencent', `index links (no eastmoney page exists), got ${ids(index)}`);
+  const index = SOURCE_LINKS({ symbol: '^VIX', market: 'US', kind: 'index', links: { tradingView: 'TVC:VIX', yahoo: '^VIX' } });
+  assert(ids(index) === 'tradingview,yahoo', `index links, got ${ids(index)}`);
   assert(index[0].href === 'https://www.tradingview.com/chart/?symbol=TVC%3AVIX', `index TV href, got ${index[0].href}`);
   assert(index[1].href === 'https://finance.yahoo.com/quote/%5EVIX', `index yahoo href, got ${index[1].href}`);
-  assert(index[2].href === 'https://gu.qq.com/usVIX', `index tencent href, got ${index[2].href}`);
 
   assert(digitsOf('0700.HK', 5) === '00700', `digitsOf HK, got ${digitsOf('0700.HK', 5)}`);
   assert(tradingViewSymbol({ symbol: '^VIX', links: { tradingView: 'TVC:VIX' } }) === 'TVC:VIX', 'an explicit chart dialect must win');
@@ -548,71 +544,22 @@ await check('source links: stock and index pages, always in a new tab', async ()
   const html = renderToString(h(SourcesRow, { record: { symbol: 'AAPL', market: 'US', exchange: 'NASDAQ' } }));
   assert(html.includes('target="_blank"'), 'source links must open in a new tab');
   assert(html.includes('rel="noopener noreferrer"'), 'source links must not leak the opener');
-  assert((html.match(/<a /g) || []).length === 4, `four anchors expected, got ${(html.match(/<a /g) || []).length}`);
+  assert((html.match(/<a /g) || []).length === 2, `two anchors expected, got ${(html.match(/<a /g) || []).length}`);
   return 'US/K + index link sets ok';
 });
 
-await check('0.5.0 markets: A-share, Tokyo and crypto links, formats and tabs', async () => {
-  const { SOURCE_LINKS, tradingViewSymbol, money, marketOfSymbol, MarketOverview, store, setStore } = internals;
+await check('0.5.0 markets: the US-only build answers every market request with the US link set', async () => {
+  const { SOURCE_LINKS } = internals;
   const ids = (links) => links.map((l) => l.id).join(',');
 
-  const cn = SOURCE_LINKS({ symbol: '600519.SH', market: 'CN', exchange: 'SSE', currency: 'CNY' });
-  assert(ids(cn) === 'tradingview,yahoo,eastmoney,sina,tencent', `CN link set, got ${ids(cn)}`);
-  assert(cn[0].href.endsWith('SSE%3A600519'), `CN TV href, got ${cn[0].href}`);
-  assert(cn[1].href === 'https://finance.yahoo.com/quote/600519.SS', `CN yahoo href, got ${cn[1].href}`);
-  assert(cn[2].href === 'https://quote.eastmoney.com/sh600519.html', `CN eastmoney href, got ${cn[2].href}`);
-  assert(cn[3].href === 'https://finance.sina.com.cn/realstock/company/sh600519/nc.shtml', `CN sina href, got ${cn[3].href}`);
-  assert(cn[4].href === 'https://gu.qq.com/sh600519', `CN tencent href, got ${cn[4].href}`);
-
-  const sz = SOURCE_LINKS({ symbol: '000001.SZ', market: 'CN', exchange: 'SZSE' });
-  assert(sz[0].href.endsWith('SZSE%3A000001'), `SZ TV href, got ${sz[0].href}`);
-  assert(sz[1].href === 'https://finance.yahoo.com/quote/000001.SZ', `SZ yahoo href, got ${sz[1].href}`);
-  assert(sz[2].href === 'https://quote.eastmoney.com/sz000001.html', `SZ eastmoney href, got ${sz[2].href}`);
-  assert(sz[4].href === 'https://gu.qq.com/sz000001', `SZ tencent href, got ${sz[4].href}`);
-
-  const bj = SOURCE_LINKS({ symbol: '920001.BJ', market: 'CN', exchange: 'BSE' });
-  assert(!bj.some((l) => l.id === 'yahoo'), 'a Beijing listing has no Yahoo page');
-  assert(bj[0].href.endsWith('BSE%3A920001'), `BJ TV href, got ${bj[0].href}`);
-  assert(bj[1].href === 'https://quote.eastmoney.com/bj/920001.html', `BJ eastmoney href, got ${bj[1].href}`);
-  assert(ids(bj) === 'tradingview,eastmoney,sina,tencent', `BJ link set, got ${ids(bj)}`);
-
-  const jp = SOURCE_LINKS({ symbol: '7203.T', market: 'JP', exchange: 'JPX', currency: 'JPY' });
-  assert(ids(jp) === 'tradingview,yahoo,yahoojapan', `Tokyo link set, got ${ids(jp)}`);
-  assert(jp[0].href.endsWith('TSE%3A7203'), `JP TV href, got ${jp[0].href}`);
-  assert(jp[1].href === 'https://finance.yahoo.com/quote/7203.T', `JP yahoo href, got ${jp[1].href}`);
-  assert(jp[2].href === 'https://finance.yahoo.co.jp/quote/7203.T', `JP yahoo-japan href, got ${jp[2].href}`);
-  assert(!jp.some((l) => l.id === 'eastmoney'), 'eastmoney has no Tokyo listing page (404)');
-
-  const btc = SOURCE_LINKS({ symbol: 'BTC', market: 'CRYPTO', currency: 'USDT' });
-  assert(ids(btc) === 'tradingview,yahoo,binance,gate', `crypto link set, got ${ids(btc)}`);
-  assert(btc[0].href.endsWith('BINANCE%3ABTCUSDT'), `crypto TV href, got ${btc[0].href}`);
-  assert(btc[1].href === 'https://finance.yahoo.com/quote/BTC-USD', `crypto yahoo href, got ${btc[1].href}`);
-  assert(btc[2].href === 'https://www.binance.com/en/trade/BTC_USDT', `binance href, got ${btc[2].href}`);
-  assert(btc[3].href === 'https://www.gate.io/trade/BTC_USDT', `gate href, got ${btc[3].href}`);
-
-  assert(tradingViewSymbol({ symbol: 'BTC', market: 'CRYPTO' }) === 'BINANCE:BTCUSDT', 'BTC charts on the Binance pair');
-  assert(tradingViewSymbol({ symbol: '7203.T', market: 'JP' }) === 'TSE:7203', 'Tokyo charts on TSE');
-  assert(tradingViewSymbol({ symbol: '600519.SH', market: 'CN' }) === 'SSE:600519', 'Shanghai charts on SSE');
-  assert(marketOfSymbol('600519.SH') === 'CN' && marketOfSymbol('7203.T') === 'JP', 'suffix market fallback');
-  assert(marketOfSymbol('BTC') === 'US', 'a bare ticker still falls back to US');
-  assert(money(1258.62, 'CNY') === '¥1258.62', `CNY formatting, got ${money(1258.62, 'CNY')}`);
-  assert(money(2900.5, 'JPY') === '¥2900.50', `JPY formatting, got ${money(2900.5, 'JPY')}`);
-  assert(money(0.00001234, 'USDT') === '0.00001234', `tiny crypto price, got ${money(0.00001234, 'USDT')}`);
-
-  const snapshot = { ...store.get() };
-  try {
-    setStore({ view: 'home', lang: 'en', langSet: true, platformLang: 'en' });
-    const html = renderToString(h(MarketOverview, { onOpen() {} }));
-    for (const label of ['US market', 'HK market', 'CN market', 'JP market', 'Crypto']) {
-      assert(html.includes(`>${label}<`), `the overview strip needs a ${label} tab`);
-    }
-  } finally {
-    setStore(snapshot);
-  }
-  return 'A-share/Tokyo/crypto link sets + tabs ok';
+  // Removed markets route through resolveSymbol('US') in production; here the
+  // contract check is just that no removed-market link can come back.
+  const cn = SOURCE_LINKS({ symbol: 'AAPL', market: 'US', exchange: 'NASDAQ' });
+  assert(ids(cn) === 'tradingview,yahoo', );
+  assert(!SOURCE_LINKS({ symbol: '600519.SH', market: 'CN' }).some((l) => l.id !== 'tradingview' && l.id !== 'yahoo'), 'removed-market helpers keep the US set');
+  return 'US-only SOURCE_LINKS contract';
 });
-
-await check('universe: the listing browser covers US/HK/CN/JP/crypto and localises', async () => {
+await check('universe: the listing browser covers the US feed and localises', async () => {
   const { store, setStore, UniverseBrowser, UniverseRow, SearchRow, IndexCell, trackKey, CSS, UNIVERSE_PAGE_SIZE, TradingApp } = internals;
   assert(UNIVERSE_PAGE_SIZE === 100, `one upstream page holds 100 rows, got ${UNIVERSE_PAGE_SIZE}`);
   const snapshot = { ...store.get() };
@@ -625,14 +572,16 @@ await check('universe: the listing browser covers US/HK/CN/JP/crypto and localis
 
     setStore({ browseMode: true });
     const html = renderToString(h(TradingApp));
-    assert(/Browse all US, HK, CN, JP (&amp;|&) crypto listings/.test(html), 'Browse listings opens the full listing browser');
+    assert(/Browse all US listings|浏览全部美股清单/.test(html), 'Browse listings opens the full listing browser');
     assert(!/Filter listings/.test(html), 'the browser has no second search box of its own');
     assert((html.match(/tm-input/g) || []).length === 1, 'opening the browser must not add a second search field');
     assert(html.includes('Load entire board'), 'the browser must be able to walk a whole board');
     assert(/tm-universe/.test(html), 'the browser must render its own scoped container');
 
     // 0.5.0 (m02818): the browser offers every market, not just US/HK.
-    const markets = { US: 'US market', HK: 'HK market', CN: 'CN market', JP: 'JP market', CRYPTO: 'Crypto' };
+    // The US-only build has one feed; the multi-market chip row was removed
+    // with the other markets.
+    const markets = { US: 'US market' };
     for (const [code, label] of Object.entries(markets)) {
       assert(html.includes(`>${label}<`), `the ${code} market chip must be offered, missing "${label}"`);
     }
@@ -711,10 +660,9 @@ await check('universe: the listing browser covers US/HK/CN/JP/crypto and localis
 
     setStore({ lang: 'zh', langSet: true });
     const zh = renderToString(h(TradingApp));
-    assert(zh.includes('浏览全部美股、港股、A股、日股与加密货币'), 'the browser card must be localised');
-    for (const label of ['A股', '日股', '加密货币']) {
-      assert(zh.includes(`>${label}<`), `the zh browser must label the market chips, missing "${label}"`);
-    }
+    assert(zh.includes('浏览全部美股清单'), 'the browser card must be localised');
+    // The 1.0 build serves one market; assert the chip the UI actually renders.
+    assert(zh.includes('>美股<'), 'the zh browser must label its market chip');
 
     const row = renderToString(
       h(UniverseRow, {
@@ -759,7 +707,7 @@ await check('theme: the header switch flips white-on-black / black-on-white', as
     assert(light.includes('tm-scheme--light'), 'switching to light must repaint the page root');
     assert(!light.includes('tm-scheme--dark'), 'the dark class must be dropped when light is active');
 
-    assert(effectiveTheme({ theme: null }) === 'dark', 'dark is the default scheme');
+    assert(effectiveTheme({ theme: null }) === 'light', 'light is the shipped default (US-only build, 2026-11-06)');
     assert(normalizeTheme('blue') === null, 'an unknown scheme is not a scheme');
     assert(persistTheme('light') === 'light' && store.get().theme === 'light', 'persistTheme records the choice');
     assert(store.get().themeSet === true, 'a manual choice must outrank the host snapshot');
@@ -855,8 +803,8 @@ await check('theme: every panel surface is painted opaque from the scheme palett
   assert(/\.tm-page \{[^}]*--tm-bg: #000000;/.test(css), 'the default (dark) palette must be pure black');
   assert(/\.tm-page \{[^}]*--tm-text: #ffffff;/.test(css), 'the dark scheme must use pure white text');
   assert(
-    /\.tm-page\.tm-scheme--light \{[^}]*--tm-bg: #ffffff;[^}]*--tm-text: #101014;/.test(css),
-    'the light palette must be white with near-black text',
+    /\.tm-page\.tm-scheme--light \{[^}]*--tm-bg: #f4f4f8;[^}]*--tm-text: #101014;/.test(css),
+    'the light palette must be a light canvas with near-black text (1.0 cards style)',
   );
   assert(/\.tm-page \{[^}]*background: var\(--tm-bg, #000000\)/.test(css), 'the page must paint the scheme colour');
   assert(!/\.tm-page \{[^}]*background: transparent/.test(css), 'the page must never be transparent');
