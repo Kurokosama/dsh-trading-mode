@@ -576,7 +576,35 @@ async function main() {
     return 'post/pre prints above 2% become an action idea ahead of the technical ladder';
   });
 
-  await check('1.1: three prints in one week are one risk, said once', () => {
+  await check('1.1: the consensus target only speaks when it disagrees by a margin', () => {
+  const input = buildBriefInput({
+    stocks: [
+      { symbol: 'AAPL', price: 300, changePct: 0.4 },
+      { symbol: 'NVDA', price: 220, changePct: -0.2 },
+      { symbol: 'MSFT', price: 350, changePct: 0.1 },
+      { symbol: 'VTI', price: 300 },
+    ],
+    analysts: [
+      { symbol: 'aapl', targetMean: 332.68, price: 300, rating: 'buy', count: 39 },
+      { symbol: 'NVDA', targetMean: 200, price: 220, rating: 'hold' },
+      { symbol: 'MSFT', targetMean: 400, price: 350, rating: 'strong_buy' },
+      { symbol: 'VTI', targetMean: 300 },
+      { symbol: 'JUNK', targetMean: 'up', price: 10 },
+    ],
+  });
+  assert(input.analystViews.length === 3, `three usable rows, got ${JSON.stringify(input.analystViews)}`);
+  assert(input.analystViews[0].symbol === 'AAPL', 'symbols are upper-cased');
+  assert(input.analystViews[1].targetMean === 200, 'rounding keeps the number');
+  const en = derivedSuggestions(input, 'en');
+  assert(en.some((line) => line.includes('consensus target')), `a wide gap speaks, got ${JSON.stringify(en)}`);
+  assert(en.some((line) => line.includes('+10.9%')), `upside is signed, got ${JSON.stringify(en)}`);
+  assert(en.some((line) => line.includes('(buy)')), 'the rating rides along');
+  assert(!en.some((line) => line.includes('NVDA sits')), 'a 9.1% gap is not worth a line');
+  const zh = derivedSuggestions(input, 'zh');
+  assert(zh.some((line) => line.includes('距离一致目标价')), `zh speaks too, got ${JSON.stringify(zh)}`);
+});
+
+await check('1.1: three prints in one week are one risk, said once', () => {
   const snapshot = {
     stocks: [
       { symbol: 'NVDA', price: 188.2, changePct: -0.4 },

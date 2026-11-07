@@ -144,7 +144,14 @@ function fakeService() {
       return { data: { symbol, asOf: Date.now(), rsi14: 55.2 }, meta: { stale: false } };
     },
     async getProfile(symbol) {
-      return { data: { symbol, description: 'fake' }, meta: { stale: false } };
+      return {
+        data: {
+          symbol,
+          description: 'fake',
+          analysts: { count: 39, targetMean: 332.68, rating: 'buy', ratingMean: 2.25, targetHigh: 405, targetLow: 250 },
+        },
+        meta: { stale: false },
+      };
     },
     async getNews(symbol, opts = {}) {
       return {
@@ -476,6 +483,12 @@ await suite.check('the AI brief reads the caller\'s rows and rejects an empty li
   assert.equal(ai.briefs.length, 1);
   assert.equal(ai.briefs[0].opts.lang, 'zh');
   assert.equal(ai.briefs[0].snapshot.stocks[0].symbol, 'AAPL');
+  const views = ai.briefs[0].snapshot.analysts;
+  assert.ok(Array.isArray(views) && views.length === 1, `the consensus rides along, got ${JSON.stringify(views)}`);
+  assert.equal(views[0].symbol, 'AAPL');
+  assert.equal(views[0].targetMean, 332.68);
+  assert.equal(views[0].price, 230.1, 'the price is the quote the brief is written against, not the profile');
+  assert.equal(views[0].rating, 'buy');
   assert.deepEqual(watchlist.calls.filter((c) => c.op === 'list').map((c) => c.userId), ['local-1', 'local-1']);
   return 'brief uses the caller rows';
 });
