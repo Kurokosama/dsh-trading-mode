@@ -658,6 +658,18 @@ await check('chart: the cost basis is drawn on the price scale, not guessed', as
   return 'cost level ok';
 });
 
+await check('panel: a zero-height slot says so instead of staying blank', async () => {
+  assert(String(internals.TradingApp).includes('useSlotNotice'), 'the page watches its own slot');
+  assert(String(internals.useSlotNotice).includes('IntersectionObserver'), 'visibility is measured, not guessed');
+  assert(String(internals.TradingApp).includes('tm-zero'), 'the notice is rendered');
+  assert(internals.CSS.includes('.tm-zero'), 'the notice has a style');
+  const css = internals.CSS.slice(internals.CSS.indexOf('.tm-zero'));
+  assert(css.slice(0, 120).includes('position: fixed'), 'fixed, so a clipping ancestor cannot hide the notice too');
+  const zh = internals.makeT('zh');
+  assert(zh('The panel has no visible area') === '面板没有可见区域', 'zh title');
+  return 'zero-slot notice covered';
+});
+
 await check('help: the panel can report its own runtime state', async () => {
   const t = internals.makeT('en');
   const rows = internals.diagnostics(t);
