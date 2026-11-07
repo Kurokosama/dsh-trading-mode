@@ -565,6 +565,31 @@ await check('watchlist: the auto refresh toggle states what it will do next', as
   assert(/\.tm-auto--on \{[^}]*--tm-brand/.test(internals.CSS), 'the on state is visible, not just in the title attribute')
 })
 
+await check('watchlist: a held row says how much of the book it is', async () => {
+  const zh = internals.makeT('zh')
+  const position = (value, currency) => ({ value, currency, shares: 1, cost: 1, basis: 0, pnl: 0, pct: 0, today: 0, todayPct: 0 })
+  const totals = [{ currency: 'USD', value: 4000, basis: 0, pnl: 0, today: 0, count: 2, counted: 0 }]
+
+  const weight = internals.positionWeight(position(1000, 'USD'), totals)
+  assert(weight.pct === 25, 'a quarter of the book is 25%')
+  assert(weight.currency === 'USD', 'the share stays inside its own currency')
+
+  // Every null below is a case where a percentage would be a guess: no
+  // position, no book, a currency the book does not hold, or a zero total.
+  assert(internals.positionWeight(null, totals) === null, 'a watched but unheld row has no weight')
+  assert(internals.positionWeight(position(10, 'USD'), []) === null, 'no book means no share')
+  assert(internals.positionWeight(position(10, 'HKD'), totals) === null, 'HKD value has no USD denominator')
+  assert(internals.positionWeight(position(10, 'USD'), [{ currency: 'USD', value: 0 }]) === null, 'a zero book divides nothing')
+  assert(internals.positionWeight(position(0, 'USD'), totals) === null, 'a zero value prints nothing')
+
+  assert(zh('{pct} of your {currency} positions', { pct: '25.0%', currency: 'USD' }) === 'USD 仓位里占 25.0%', 'the chip localises')
+  const row = String(internals.WatchRow)
+  assert(row.includes('tm-row__weight'), 'the row draws the chip')
+  assert(row.includes('POSITION_FOCUS_PCT'), 'and marks the heavy ones with the same threshold the notes use')
+  assert(String(internals.WatchlistCard).includes('positionWeight('), 'the card feeds it from the book totals')
+  assert(/\.tm-row__weight--heavy \{[^}]*--tm-warn/.test(internals.CSS), 'the heavy chip is amber, not another grey pill')
+})
+
 await check('events: an earnings date on a name you hold is priced, not just dated', async () => {
   const zh = internals.makeT('zh')
   const quote = (price) => ({ price, change: 1, changePct: 1, currency: 'USD' })
