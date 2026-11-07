@@ -517,6 +517,44 @@ async function main() {
     return 'macroSoon rides the brief input and ranks beside the breadth idea';
   });
 
+  await check('0.5.x: a tag cluster earns a concentration note, quoted as intent', () => {
+    const realised = buildBriefInput({
+      stocks: [
+        { symbol: 'NVDA', quote: { price: 500, changePct: 1.2 }, tags: ['芯片'] },
+        { symbol: 'AMD', quote: { price: 200, changePct: -0.4 }, tags: ['芯片'] },
+        { symbol: 'MU', quote: { price: 90, changePct: 0.8 }, tags: ['核心仓', '芯片'] },
+        { symbol: 'V', quote: { price: 250, changePct: 0.1 }, tags: ['核心仓'] },
+      ],
+    });
+    const en = derivedSuggestions(realised, 'en');
+    assert.ok(
+      en.some((line) => line.includes('3 of 4 watch rows') && line.includes('"芯片"') && line.includes('deliberate concentration')),
+      'the en note counts the cluster and treats the tag as owner intent',
+    );
+    const zh = derivedSuggestions(realised, 'zh');
+    assert.ok(
+      zh.some((line) => line.includes('3 只带你的标签「芯片」') && line.includes('主题集中')),
+      'the zh note localises the same count',
+    );
+    const sparse = derivedSuggestions(
+      buildBriefInput({ stocks: [{ symbol: 'NVDA', quote: { price: 500 }, tags: ['芯片'] }] }),
+      'en',
+    );
+    assert.ok(sparse.every((line) => !/carry your tag/.test(line)), 'no cluster note below three rows sharing a tag');
+    const emptyTag = derivedSuggestions(
+      buildBriefInput({
+        stocks: [
+          { symbol: 'NVDA', quote: { price: 500 }, tags: [null, '   '] },
+          { symbol: 'AMD', quote: { price: 200 } },
+          { symbol: 'MU', quote: { price: 90 } },
+        ],
+      }),
+      'en',
+    );
+    assert.ok(emptyTag.every((line) => !/carry your tag/.test(line)), 'blank tag rows never count toward a cluster');
+    return 'tag-cluster concentration idea rides beside the breadth line';
+  });
+
   await check('buildBriefInput ages the whole brief by its oldest row', () => {
     const stocks = [
       { symbol: 'AAPL', quote: { timestamp: Date.now() }, stale: false },
