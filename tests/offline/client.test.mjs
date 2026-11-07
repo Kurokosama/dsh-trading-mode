@@ -574,6 +574,19 @@ await check('event board: three calendars merge into one chronological, filterab
   assert(!all.rows.some((row) => row.symbol === 'AAPL'), 'a date outside the window is dropped');
   assert(all.counts.earnings === 2 && all.counts.macro === 2 && all.counts.exchange === 2, `counts by type, got ${JSON.stringify(all.counts)}`);
   assert(all.counts.soon === 4 && all.counts.total === 6, `near-term count, got ${JSON.stringify(all.counts)}`);
+  // Merging is only worth it if the collision is said out loud: the 9th carries
+  // an earnings report and an FOMC decision in one session, so each of those two
+  // rows points at the other one.
+  const ninth = all.rows.filter((row) => row.date === '2026-11-09')
+  assert(ninth.length === 2 && ninth.every((row) => row.sameDay === 1), `same-day rows point at each other, got ${JSON.stringify(ninth.map((row) => row.sameDay))}`)
+  assert(all.rows.filter((row) => row.date !== '2026-11-09').every((row) => row.sameDay === 0), 'a lone row claims no collision')
+  assert(onlyEarningsCollision(), 'a filtered board counts only what it shows')
+  function onlyEarningsCollision() {
+    const filtered = merge(payload, { days: 30, type: 'earnings' })
+    return filtered.rows.every((row) => row.sameDay === 0)
+  }
+  assert(zh('+{n} same day', { n: 1 }) === '同日另有 1 件', 'the collision tag reads as a count in Chinese')
+  assert(internals.CSS.includes('.tm-ev__same'), 'the collision tag ships its CSS')
   const week = merge(payload, { days: 7 });
   assert(week.rows.length === 4 && week.counts.earnings === 2, `the 7-day chip drops everything past the week, got ${week.rows.length}`);
   const onlyEarnings = merge(payload, { days: 30, type: 'earnings' });
