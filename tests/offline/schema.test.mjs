@@ -87,6 +87,33 @@ test('schema: the top-ten holdings list is trimmed to presentable facts', () => 
   assert.deepEqual(absurd.holdings.map((item) => item.name), ['Fine'])
 })
 
+test('schema: the sector mix keeps the real slicing, biggest first', () => {
+  const p = makeProfile({
+    symbol: 'VOO',
+    market: 'US',
+    name: 'Vanguard S&P 500 ETF',
+    sectors: [
+      { key: 'healthcare', name: 'Healthcare', weight: 9.26 },
+      { key: 'technology', name: 'Technology', weight: 40.48 },
+      { key: '', name: '', weight: 3 },
+      { key: 'junk', name: 'Junk', weight: 0 },
+      { key: 'scaled', name: 'Scaled', weight: 400 },
+      null,
+      { key: 'energy', name: 'Energy', weight: 3.4 },
+    ],
+  })
+  assert.deepEqual(p.sectors.map((item) => item.key), ['technology', 'healthcare', 'energy'])
+  assert.deepEqual(p.sectors.map((item) => item.weight), [40.48, 9.26, 3.4])
+  // A zero or >100 share is a broken row, not a real slice of the fund.
+  assert.ok(!p.sectors.some((item) => item.name === 'Junk' || item.name === 'Scaled'))
+  assert.equal(p.sectors[0].name, 'Technology')
+});
+
+test('schema: no sector input keeps the field empty rather than fabricating rows', () => {
+  const p = makeProfile({ symbol: 'AAPL', market: 'US', name: 'Apple' });
+  assert.equal(p.sectors, undefined);
+});
+
 test('schema: no holdings input keeps the field empty rather than fabricating rows', () => {
   const p = makeProfile({ symbol: 'AAPL', market: 'US', name: 'Apple' })
   assert.equal(p.holdings, undefined)

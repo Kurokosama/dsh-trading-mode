@@ -490,7 +490,14 @@ await check('ETF profile facts: fund family, fee and the ten largest positions',
   const total = d.holdings.reduce((sum, item) => sum + (item.weight || 0), 0);
   assert.ok(total > 20 && total <= 100.5, `weights cover a sane share of the fund (got ${total.toFixed(2)}%)`);
   assert.ok(d.holdings.every((item) => item.symbol || item.name), 'every holding is nameable');
-  return `${d.fundFamily} fee=${d.expenseRatio}% yield=${d.dividendYield}% holdings=${d.holdings.length} top=${d.holdings[0].symbol}@${d.holdings[0].weight}%`;
+  // Sector mix: same asset as topHoldings.sectorWeightings, so a key or unit
+  // regression should trip here too.
+  assert.ok(Array.isArray(d.sectors) && d.sectors.length >= 8 && d.sectors.length <= 11, `sector mix rows (got ${d.sectors && d.sectors.length})`);
+  const sectorTotal = d.sectors.reduce((sum, item) => sum + (item.weight || 0), 0);
+  assert.ok(sectorTotal > 85 && sectorTotal <= 100.5, `sectors cover the fund (got ${sectorTotal.toFixed(2)}%)`);
+  assert.ok(d.sectors.every((item) => item.name && item.weight > 0), 'every sector row is nameable');
+  assert.ok(d.sectors[0].weight >= d.sectors[d.sectors.length - 1].weight, 'largest sector first');
+  return `${d.fundFamily} fee=${d.expenseRatio}% yield=${d.dividendYield}% holdings=${d.holdings.length} top=${d.holdings[0].symbol}@${d.holdings[0].weight}% sectors=${d.sectors.length} lead=${d.sectors[0].name}@${d.sectors[0].weight}%`;
 });
 
 log('\n== cache behaviour (§41/§42) ==');

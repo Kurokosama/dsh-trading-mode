@@ -503,6 +503,21 @@ await check('etf holdings: the top-ten table ships with weight bars and bilingua
   return 'holdings card CSS + bilingual titles resolve';
 });
 
+await check('etf sectors: the exposure card draws to scale and localises every label', async () => {
+  const zh = internals.makeT('zh');
+  const en = internals.makeT('en');
+  assert(internals.CSS.includes('.tm-sectors') && internals.CSS.includes('.tm-sector__fill'), 'the sector rows ship their theme-token CSS');
+  assert(String(en('Sector exposure')) === 'Sector exposure', 'English keeps the canonical card title');
+  assert(zh('Sector exposure') === '行业分布', 'the card title localises');
+  assert(zh("share of the fund's assets by sector") === '按行业划分的基金资产占比（%）', 'the meta line localises');
+  // The provider sends Yahoo's English sector labels; every one of the eleven
+  // must resolve, otherwise a row silently renders in English.
+  const labels = ['Technology', 'Financial services', 'Communication services', 'Healthcare', 'Consumer cyclical', 'Consumer defensive', 'Industrials', 'Energy', 'Basic materials', 'Real estate', 'Utilities'];
+  const missing = labels.filter((label) => /[\u4e00-\u9fff]/.test(zh(label)) === false);
+  assert(missing.length === 0, `untranslated sectors: ${missing.join(', ')}`);
+  return 'sector card CSS + 11/11 labels localise';
+});
+
 await check('i18n: technical grid follows the selected language', async () => {
   const tech = { ma20: 3, rsi14: 9, volumeRatio20d: 14, trendAlignment: 'bullish-stack', volatility20dAnnualizedPct: 18 };
   const en = internals.technicalCells(tech, internals.makeT('en'));
