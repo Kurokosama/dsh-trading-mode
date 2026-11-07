@@ -659,7 +659,7 @@ await check('board pulse: breadth counts only rows with a real day change', asyn
   assert(quiet.lead === null, 'a flat board has no lead')
   assert(I.marketPulse(null).total === 0 && I.marketPulse([]).counted === 0, 'a missing list cannot throw')
   assert(/\.tm-pulse__lead/.test(I.CSS), 'the strip ships its own styles')
-  const zh = I.makeT('zh')
+  const zh = internals.makeT('zh')
   assert(zh('{up} up {down} down', { up: 3, down: 5 }) === '3 涨 5 跌', 'breadth localises')
   assert(zh('Largest move: {sym}', { sym: 'NVDA' }) === '最大波动 NVDA', 'the lead label localises')
   return 'pulse counts breadth and the single steepest move'
@@ -682,7 +682,7 @@ await check('after hours: the board only lists prints that actually moved', asyn
   assert(I.afterHoursMovers([]).length === 0, 'no rows, no board')
   assert(I.afterHoursMovers(null).length === 0, 'a missing list cannot throw')
   assert(/\.tm-ah__row/.test(I.CSS) && /\.tm-ah__pct/.test(I.CSS), 'the board ships its own styles')
-  const zh = I.makeT('zh')
+  const zh = internals.makeT('zh')
   assert(zh('After-hours moves') === '盘前盘后异动', 'the card title localises')
   assert(zh('Change since the previous regular close').includes('收盘'), 'the tooltip names the baseline it measures from')
   return 'extended prints above 1% only'
@@ -784,6 +784,35 @@ await check('positions: a cost basis turns a row into value and open P&L', async
   return 'basis drafts normalise, markets stay separate, value and P&L agree';
 });
 
+await check('detail sparkline: the header trend squashes the last closes into a box', async () => {
+  assert(typeof internals.sparkPoints === 'function', 'sparkPoints is exported')
+  assert(internals.CSS.includes('.tm-spark'), 'the sparkline has a rule of its own')
+  assert(internals.makeT('zh')('Last 20 sessions') === '近 20 个交易日', 'the tooltip is localised')
+
+  const up = internals.sparkPoints([{ close: 10 }, { close: 12 }, { close: 11 }])
+  assert(up !== null && up.up === true, 'a series that ends above where it started trends up')
+  assert(up.points.split(' ').length === 3, 'one point per close')
+  assert(up.points.split(' ')[0].startsWith('0,'), 'the first point sits on the left edge')
+  assert(up.points.split(' ')[2].startsWith('88,'), 'the last point sits on the right edge')
+  assert(up.from === 10 && up.to === 11, 'the endpoints come back for the tooltip')
+
+  const down = internals.sparkPoints([{ close: 20 }, { close: 9 }])
+  assert(down !== null && down.up === false, 'a series that ends lower trends down')
+
+  const flat = internals.sparkPoints([{ close: 5 }, { close: 5 }])
+  assert(flat !== null && flat.points.split(' ').length === 2, 'a flat series still draws a line')
+  assert(!flat.points.includes('NaN'), 'a flat series cannot produce NaN coordinates')
+
+  const long = internals.sparkPoints(Array.from({ length: 40 }, (_, i) => ({ close: 100 + i })))
+  assert(long.points.split(' ').length === 20, 'only the last twenty sessions are used')
+
+  const gaps = internals.sparkPoints([{ close: 1 }, { close: null }, { close: 3 }])
+  assert(gaps !== null && gaps.points.split(' ').length === 2, 'closes that are not numbers are skipped')
+
+  assert(internals.sparkPoints([{ close: 3 }]) === null, 'one close is not a trend')
+  assert(internals.sparkPoints(null) === null && internals.sparkPoints([]) === null, 'no candles means no line')
+})
+
 await check('positions: the card total also carries what the session did', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-portfolio__today'), 'the session figure on the total line ships its style');
@@ -874,7 +903,7 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   assert(typeof I.sizeFor === 'function' && typeof I.suggestStop === 'function', 'sizeFor and suggestStop exported')
   const css = I.CSS
   assert(css.includes('.tm-sizing__in') && css.includes('.tm-sizing__out'), 'sizing styles present')
-  const t = I.makeT('zh')
+  const t = internals.makeT('zh')
   assert(t('Position & risk') === '仓位与风险', 'card title localised')
   assert(t('shares to buy') === '可买股数', 'shares label localised')
   assert(t('stop price') === '止损价', 'stop label localised')
@@ -912,7 +941,7 @@ await check('earnings surprises: quarters read as quarters, and the bars are sca
   assert(I.quarterLabel('') === '—', 'a missing date is a dash, not NaN')
   const css = I.CSS
   assert(css.includes('.tm-eps__row') && css.includes('.tm-eps__bar'), 'surprise styles present')
-  const t = I.makeT('zh')
+  const t = internals.makeT('zh')
   assert(t('Earnings surprises') === '财报惊喜', 'card title localised')
   assert(t('vs') === '对', 'versus localised')
   assert(t('estimate') === '预期' && t('actual') === '实际', 'the two numbers are labelled in Chinese')
@@ -980,7 +1009,7 @@ await check('news: the home card speaks for the holdings, not the whole market',
 await check('keys: one table describes the shortcuts, and `?` respects text fields', () => {
   const I = internals
   const CSS = I.CSS
-  const zhT = I.makeT('zh')
+  const zhT = internals.makeT('zh')
   assert(Array.isArray(I.SHORTCUTS) && I.SHORTCUTS.length >= 5, 'the table covers the keys the panel answers')
   const keys = I.SHORTCUTS.map((row) => row.keys)
   for (const key of ['/', 'Enter', 'Esc', '?']) assert(keys.includes(key), `the table lists ${key}`)
@@ -1004,7 +1033,7 @@ await check('keys: one table describes the shortcuts, and `?` respects text fiel
 await check('detail: the profile reads as facts plus a summary that does not wall off the page', () => {
   const I = internals
   const CSS = I.CSS
-  const zhT = I.makeT('zh')
+  const zhT = internals.makeT('zh')
   assert(CSS.includes('.tm-about__facts'), 'the fact row has its own layout')
   assert(CSS.includes('-webkit-line-clamp: 3'), 'a long summary is clamped to three lines')
   assert(CSS.includes('.tm-desc--clamp') && CSS.includes('.tm-about__more'), 'clamped text and its toggle are both styled')
@@ -1020,7 +1049,7 @@ await check('detail: the profile reads as facts plus a summary that does not wal
 await check('news: the home feed can be held to the last day, and it says when that is empty', () => {
   const I = internals
   const CSS = I.CSS
-  const zhT = I.makeT('zh')
+  const zhT = internals.makeT('zh')
   assert(CSS.includes('.tm-news__chip--on'), 'the today chip has an active state')
   assert(CSS.includes('.tm-news__empty'), 'the empty case has its own line')
   assert(zhT('Today') === '今天', 'the filter reads 今天 in Chinese')
@@ -1049,7 +1078,7 @@ await check('news: headlines are dated, linked, and localised', () => {
   for (const cls of ['.tm-news {', '.tm-news__row {', '.tm-news__title {', '.tm-news__meta {']) {
     assert(CSS.includes(cls), `the card needs ${cls}`)
   }
-  const zh = I.makeT('zh')
+  const zh = internals.makeT('zh')
   assert(zh('In the news') === '相关新闻', 'the card title is localised')
   assert(zh('{n} headlines').replace('{n}', '3') === '3 条新闻', 'the count line is localised')
   assert(zh('just now') === '刚刚', 'a fresh headline reads 刚刚')
