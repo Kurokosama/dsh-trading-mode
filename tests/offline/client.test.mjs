@@ -672,6 +672,44 @@ await check('positions: a cost basis turns a row into value and open P&L', async
   return 'basis drafts normalise, markets stay separate, value and P&L agree';
 });
 
+await check('positions: the card total also carries what the session did', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-portfolio__today'), 'the session figure on the total line ships its style');
+  assert(zh('today') === '今天', 'the session figure reuses the localised word for today');
+  const held = internals.positionOf({ price: 210, change: 2.5, changePct: 1.2 }, { price: 180.5, shares: 10 });
+  // Today's move is per share, so a ten-share book feels ten times the print.
+  assert(held.today === 25, `today's move is the print times the shares, got ${held.today}`);
+  assert(held.todayPct === 1.2, 'the session percentage is the quote’s own');
+  assert(internals.positionOf({ price: 210 }, { price: 180.5, shares: 10 }).today === null, 'a quote without a change has no session figure');
+  assert(internals.positionOf({ price: 210, change: null }, { price: 180.5, shares: 10 }).today === null, 'a null change is not a flat session');
+  const costs = {
+    'US:AAPL': { price: 180.5, shares: 10 },
+    'US:NVDA': { price: 205, shares: 5 },
+    'US:MSFT': { price: 400, shares: 1 },
+    'CRYPTO:BTC': { price: 60000, shares: 0.5 },
+  };
+  const rows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, change: 2.5, changePct: 1.2, currency: 'USD' } },
+    { symbol: 'NVDA', market: 'US', quote: { price: 180, change: -1.5, changePct: -0.8, currency: 'USD' } },
+    // A stale quote still values the position; it just cannot answer "today".
+    { symbol: 'MSFT', market: 'US', quote: { price: 410, currency: 'USD' } },
+    { symbol: 'BTC', market: 'CRYPTO', quote: { price: 61000, change: 500, changePct: 0.83, currency: 'USD' } },
+    { symbol: 'VOO', market: 'US', quote: { price: 650, change: 1 } },
+  ];
+  const totals = internals.portfolioTotals(rows, costs);
+  assert(totals.length === 1, `every book here is USD, got ${totals.length}`);
+  const usd = totals[0];
+  assert(usd.count === 4, `four rows are positions, got ${usd.count}`);
+  assert(usd.counted === 3, `only the rows with a live change answer "today", got ${usd.counted}`);
+  assert(Math.abs(usd.today - (25 - 7.5 + 250)) < 1e-9, `the session cash adds up, got ${usd.today}`);
+  assert(usd.basis === 1805 + 1025 + 400 + 30000, `the cost basis is carried for the summary, got ${usd.basis}`);
+  // Rows without a basis are not positions at zero, and an empty list is empty.
+  assert(internals.portfolioTotals([{ symbol: 'VOO', market: 'US', quote: { price: 650 } }], costs).length === 0, 'no basis means no total');
+  assert(internals.portfolioTotals([], costs).length === 0, 'an empty watchlist has no totals');
+  assert(internals.portfolioTotals(null, null).length === 0, 'a missing list is tolerated');
+  return 'the total line adds the session cash, and a stale quote only drops its own day';
+});
+
 await check('positions: an exported list carries the holdings, and an older file still imports', async () => {
   const zh = internals.makeT('zh');
   assert(zh('{n} positions restored from the file.', { n: 2 }).includes('2'), 'the restore report localises');
