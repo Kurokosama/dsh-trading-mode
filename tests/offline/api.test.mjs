@@ -146,6 +146,15 @@ function fakeService() {
     async getProfile(symbol) {
       return { data: { symbol, description: 'fake' }, meta: { stale: false } };
     },
+    async getNews(symbol, opts = {}) {
+      return {
+        data: [
+          { id: 'n1', title: `${symbol} ships a thing`, publisher: 'Wire', link: 'https://example.test/a', at: Date.now() - 3_600_000 },
+          { id: 'n2', title: 'Analysts weigh in', link: 'https://example.test/b', at: null },
+        ],
+        meta: { stale: false, limit: opts.limit || 6, market: opts.market || 'US' },
+      };
+    },
     async getCandles(symbol) {
       return { data: { candles: [] }, meta: { stale: false } };
     },
@@ -384,6 +393,24 @@ await suite.check('1.1: GET /closures answers the NYSE calendar without touching
   const post = await call(api, { method: 'POST', url: '/api/trading/closures' });
   assert.equal(post.status, 400, 'the calendar is read-only');
   return `/closures: ${value.closures.length} rows, empty windows tolerated, writes refused`;
+});
+
+await suite.check('1.1: GET /news trims the headline list and refuses writes', async () => {
+  const { api } = buildApi({ service: fakeService() });
+  const res = await call(api, { method: 'GET', url: '/api/trading/news/AAPL?limit=4' });
+  assert.equal(res.status, 200);
+  const envelope = res.payload.value;
+  const value = envelope.data;
+  assert.equal(value.length, 2, 'the route answers the rows the service returned');
+  assert.equal(value[0].link, 'https://example.test/a');
+  assert.equal(envelope.meta.limit, 4, 'the limit reaches the service');
+
+  const missing = await call(api, { method: 'GET', url: '/api/trading/news' });
+  assert.equal(missing.status, 400, 'a symbol is required');
+
+  const post = await call(api, { method: 'POST', url: '/api/trading/news/AAPL' });
+  assert.equal(post.status, 400, 'news is read-only');
+  return `/news: ${value.length} rows, limit forwarded, writes refused`;
 });
 
 await suite.check('two identities sharing one store never see each other', async () => {

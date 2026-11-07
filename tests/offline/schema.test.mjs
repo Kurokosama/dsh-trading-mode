@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { makeExtended, makeProfile, makeQuote } from '../../lib/trading/schema.js'
+import { makeExtended, makeNews, makeProfile, makeQuote } from '../../lib/trading/schema.js'
 
 test('schema: profile normalization keeps the dividend and fund facts usable', () => {
   // Yahoo quoteSummary/v10 reports summaryDetail.dividendYield as a fraction
@@ -194,4 +194,24 @@ test('schema: an extended-hours print keeps its session and drops when it cannot
   assert.equal(quote.extended.changePct, 0.08)
   // A regular-session quote must stay free of the key so the chip never renders.
   assert.equal('extended' in makeQuote({ symbol: 'AAPL', market: 'US', price: 342.37 }), false)
+})
+
+test('schema: the news list drops what cannot be shown and keeps order', () => {
+  const rows = makeNews([
+    { id: 'a', title: '  Apple   ships a thing  ', publisher: 'Wire', link: 'https://example.test/a', at: 1_790_000_000_000 },
+    // No title or no usable link: a card row here would be a dead line.
+    { title: '   ', link: 'https://example.test/empty' },
+    { title: 'No link at all' },
+    { title: 'Javascript link', link: 'javascript:alert(1)' },
+    // The same story arrives from two publishers; keep the first only.
+    { title: 'Apple ships a thing', link: 'https://example.test/a' },
+    { title: 'Second story', link: 'https://example.test/b', at: 'soon' },
+  ])
+  assert.equal(rows.length, 2)
+  assert.equal(rows[0].title, 'Apple ships a thing', 'whitespace is normalised before the row is kept')
+  assert.equal(rows[0].at, 1_790_000_000_000)
+  assert.equal('publisher' in rows[1], false, 'an absent publisher is omitted, not an empty string')
+  assert.equal(rows[1].at, null, 'a non-numeric timestamp becomes null')
+  assert.equal(makeNews(null).length, 0, 'an empty answer is an empty list')
+  assert.equal(makeNews(Array.from({ length: 30 }, (_, i) => ({ title: `t${i}`, link: `https://example.test/${i}` }))).length, 12, 'the list is capped')
 })

@@ -548,6 +548,31 @@ await check('ETF profile facts: fund family, fee and the ten largest positions',
   return `${d.fundFamily} fee=${d.expenseRatio}% yield=${d.dividendYield}% holdings=${d.holdings.length} top=${d.holdings[0].symbol}@${d.holdings[0].weight}% sectors=${d.sectors.length} lead=${d.sectors[0].name}@${d.sectors[0].weight}%`;
 });
 
+await check('related news: headlines about the symbol carry a title, a link and a date', async () => {
+  let out;
+  try {
+    out = await service.getNews('AAPL', { force: true, limit: 5 });
+  } catch (err) {
+    const gap = upstreamGap(err);
+    if (!gap) throw err;
+    return { degraded: `news feed unavailable — ${gap}` };
+  }
+  const rows = out.data;
+  assert.ok(Array.isArray(rows), 'news answers an array');
+  if (!rows.length) return { degraded: 'the search feed answered no headlines for AAPL' };
+  assert.ok(rows.length <= 5, `no more rows than asked for (got ${rows.length})`);
+  for (const row of rows) {
+    assert.ok(row.title && row.title.trim().length > 0, 'every headline carries a title');
+    assert.ok(/^https?:\/\//.test(row.link || ''), `headline link is an http URL (got ${row.link})`);
+    if (row.at != null) {
+      const year = new Date(row.at).getUTCFullYear();
+      assert.ok(year >= 2024 && year <= 2028, `publish year plausible (got ${year})`);
+    }
+  }
+  const lead = rows[0];
+  return `${rows.length} headlines, lead="${String(lead.title).slice(0, 60)}"${lead.publisher ? ` (${lead.publisher})` : ''}`;
+});
+
 log('\n== cache behaviour (§41/§42) ==');
 await check('second quote is served from cache', async () => {
   const first = await service.getQuote('AAPL');

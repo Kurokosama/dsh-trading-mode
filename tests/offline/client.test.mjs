@@ -694,6 +694,28 @@ await check('positions: the list sorts by open P&L, and a row that is no positio
   return 'open P&L sorts per row and unheld rows sink rather than rank as flat';
 });
 
+await check('news: headlines are dated, linked, and localised', () => {
+  const I = internals
+  const CSS = I.CSS
+  // Every row is a link out, so the card can never look like a dead list.
+  for (const cls of ['.tm-news {', '.tm-news__row {', '.tm-news__title {', '.tm-news__meta {']) {
+    assert(CSS.includes(cls), `the card needs ${cls}`)
+  }
+  const zh = I.makeT('zh')
+  assert(zh('In the news') === '相关新闻', 'the card title is localised')
+  assert(zh('{n} headlines').replace('{n}', '3') === '3 条新闻', 'the count line is localised')
+  assert(zh('just now') === '刚刚', 'a fresh headline reads 刚刚')
+  // Ages are coarse on purpose: minutes, hours, days, then months.
+  const now = Date.UTC(2026, 10, 7, 12, 0, 0)
+  assert(I.agoOf(now - 30_000, now) === I.translate('just now'), 'seconds-old reads the localised 刚刚/just now')
+  assert(I.agoOf(now - 12 * 60_000, now) === '12m', 'minutes')
+  assert(I.agoOf(now - 3 * 3_600_000, now) === '3h', 'hours')
+  assert(I.agoOf(now - 2 * 86_400_000, now) === '2d', 'days')
+  assert(I.agoOf(now - 45 * 86_400_000, now) === '2mo', 'months')
+  assert(I.agoOf(null, now) === '', 'a missing stamp shows no age rather than "56y"')
+  return `news: ${CSS.includes('.tm-news__row') ? 'card styled' : 'missing'}, ages 12m/3h/2d/2mo`
+})
+
 await check('session chip: NYSE holidays and early closes override the weekday clock', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-session__note') && internals.CSS.includes('.tm-session--holiday'), 'the chip ships its note and holiday styles');
