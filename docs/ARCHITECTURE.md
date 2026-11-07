@@ -134,6 +134,31 @@ flagged `degraded: true` so the UI can say the history is incomplete instead of 
   DeepSeek-capable provider. The model receives **only** the structured snapshot; it never
   fetches market data and never computes indicators.
 
+## Client registration contract
+
+The panel is two slot registrations, and they belong to **different slots**:
+
+| Piece | Slot | Call |
+| --- | --- | --- |
+| The page | `main` | `ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID }, Page))` |
+| The sidebar row | `sidebar.panellist` | `ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order, label }, Row))` |
+
+Points that are easy to get wrong, each observed in a real failure:
+
+- **The page must be injected through `main`.** Registering a `main` entry from inside the
+  sidebar callback leaves the row working and the page area empty — the host mounts pages
+  from the `main` injection, not from an entry that merely exists.
+- **An injection may never run.** `slots.inject(slot, cb)` can accept the callback and not call
+  it; the page is then unregistered and the panel is blank. The client records that the
+  injection ran and falls back to a direct `register` when it did not.
+- **Slot names are declared, not fixed.** Registering into an undeclared slot throws
+  (`slot "x" is not declared`), which is why both calls sit in `try/catch` and why a failure
+  registers a minimal error page instead of leaving nothing.
+- **The row and the page share `PANEL_ID`** (`key` on the page, `id` on the row) so selecting
+  the row resolves the page.
+
+---
+
 ## Client half — `lib/client.js`
 
 The client is a **single client plugin** built from the same `package.json`
