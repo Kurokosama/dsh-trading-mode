@@ -752,6 +752,34 @@ await check('detail page: the day is read against its sector, not only against y
   assert(/\.tm-rel__gap \{[^}]*tabular-nums/.test(internals.CSS), 'the gap keeps its digits aligned')
 })
 
+await check('detail page: a month of relative strength sits next to the day', async () => {
+  const zh = internals.makeT('zh')
+  const rs = internals.relativeStrength
+  const series = (start, step, n) => Array.from({ length: n }, (_, i) => ({ close: start + step * i }))
+  const stock = series(100, 1, 21)
+  const sector = series(100, 0.5, 21)
+  const out = rs(stock, sector)
+  assert(out && out.window === 20, 'the comparison names its window')
+  assert(Math.round(out.stockPct) === 20, 'the name is up 20% over the window')
+  assert(Math.round(out.sectorPct) === 10, 'the sector is up 10% over the same window')
+  assert(Math.round(out.gap) === 10, 'the gap is the difference, in percentage points')
+  // A series shorter than the window cannot answer the question for that window:
+  // reporting a five-session number under a twenty-session label would be a lie.
+  assert(rs(stock.slice(0, 20), sector) === null, 'a short stock series yields nothing')
+  assert(rs(stock, sector.slice(0, 5)) === null, 'a short sector series yields nothing')
+  assert(rs(null, sector) === null && rs(stock, null) === null, 'missing sides yield nothing')
+  // Flat against flat is zero, which is a real answer and must not collapse to null.
+  assert(Math.round(rs(series(50, 0, 25), series(80, 0, 25)).gap) === 0, 'flat vs flat is 0, not unknown')
+  // Bars without a usable close are skipped rather than poisoning the average.
+  const messy = series(100, 1, 20).concat([{ close: null }, { close: 120 }])
+  assert(Math.round(rs(messy, sector).stockPct) === 20, 'a null bar is skipped, not counted as zero')
+  assert(zh('{n}d vs sector {gap}', { n: 20, gap: '+3.4pp' }) === '近 20 日相对板块 +3.4pp', 'the figure reads as a sentence')
+  const source = String(internals.DetailView)
+  assert(source.includes('tm-rel__rs'), 'the header carries the multi-session figure')
+  assert(source.includes("t('{n}d vs sector {gap}'"), 'and labels the window it used')
+  assert(/\.tm-rel__rs::before \{[^}]*content/.test(internals.CSS), 'a dot separates it from the day figure')
+})
+
 await check('analyst card: the mix and the grade changes are read, not just listed', async () => {
   const zh = internals.makeT('zh');
   const day = 86_400_000;
