@@ -433,6 +433,20 @@ await check('notes: the ticker inside a sentence is a link, and only a real tick
   return 'note parts ok';
 });
 
+await check('home: the jump chip carries the week it is asking you to look at', async () => {
+  const home = String(internals.HomeView);
+  assert(home.includes('onCounts: setEventCounts'), 'the board reports its counts up to the page');
+  assert(home.includes('tm-jump__n'), 'the events chip can carry a number');
+  assert(home.includes('{n} in the next seven days') || home.includes("'{n} in the next seven days'"), 'the badge explains itself on hover');
+  const board = String(internals.EventBoard);
+  assert(board.includes('onCounts'), 'the board accepts the callback');
+  assert(board.includes('counts.soon') && board.includes('counts.total'), 'and reports the numbers that matter');
+  assert(/\[counts\.soon, counts\.total\]/.test(board), 'keyed on the numbers, so a re-render cannot loop');
+  assert(internals.CSS.includes('.tm-jump__n'), 'the badge has its own hook');
+  assert(internals.ZH['{n} in the next seven days'] === '未来七天 {n} 件', 'the tooltip is localised');
+  return 'jump badge ok';
+});
+
 await check('notes: a huge move on a tiny position is not a decision', async () => {
   const t = internals.makeT('en');
   const rows = [
