@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 
 import {
+  BRIEF_STYLE_DIRECTIVE,
   ChunkAssembler,
   RECENCY_DIRECTIVE,
   STOCK_SYSTEM_PROMPT,
@@ -491,6 +492,28 @@ async function main() {
     assert.equal(input.dataQuality.grade, 'historical');
     assert.match(input.dataQuality.qualification, /previous session|historical/i);
     return 'brief aged by oldest row';
+  });
+
+  await check('1.1: the brief input and directive carry the owner tags', () => {
+    // Tags flow into the model input only when a row has them; the style
+    // directive spells out how they may shape suggestions.
+    const input = buildBriefInput({
+      stocks: [
+        { symbol: 'AAPL', quote: { timestamp: Date.now() }, tags: ['核心仓'] },
+        { symbol: 'MSFT', quote: { timestamp: Date.now() } },
+        { symbol: 'UBER', quote: { timestamp: Date.now() }, tags: [] },
+      ],
+      asOf: Date.now(),
+    });
+    const aapl = input.stocks.find((row) => row.symbol === 'AAPL');
+    assert.deepEqual(aapl.tags, ['核心仓'], 'a tagged row keeps its labels');
+    const msft = input.stocks.find((row) => row.symbol === 'MSFT');
+    assert.equal('tags' in msft && msft.tags, undefined, 'an untagged row omits the key');
+    const uber = input.stocks.find((row) => row.symbol === 'UBER');
+    assert.equal('tags' in uber && uber.tags, undefined, 'an empty tag list omits the key too');
+    assert.match(BRIEF_STYLE_DIRECTIVE, /tags: some rows carry/i, 'the directive explains intent vs data');
+    assert.match(BRIEF_STYLE_DIRECTIVE, /never quote the label/i);
+    return 'tags intent wired into the brief';
   });
 
   console.log(`\n=== ${passed}/${passed + failures.length} checks passed, ${failures.length} failed ===`);
