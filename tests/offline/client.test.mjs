@@ -624,6 +624,29 @@ await check('price alerts: the watched price is the latest print, extended hours
   return 'extended print wins while fresh, broken blocks fall back, no print no alarm';
 });
 
+await check('positions: a cost basis turns a row into value and open P&L', async () => {
+  const zh = internals.makeT('zh');
+  assert(internals.CSS.includes('.tm-row__flag--pnl') && internals.CSS.includes('.tm-portfolio'), 'the row flag and the card total ship their styles');
+  assert(zh('Position') === '持仓', 'the detail editor is labelled in Chinese');
+  assert(zh('Open P&L') === '浮动盈亏', 'open P&L localises');
+  const map = { 'US:AAPL': { price: '180.5', shares: '10' }, 'US:NVDA': { price: '900' }, 'CRYPTO:BTC': { price: '60000', shares: '0.5' } };
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Draft strings arrive from number inputs, so they are normalised here.
+  assert(same(internals.costOf(map, { symbol: 'AAPL', market: 'US' }), { price: 180.5, shares: 10 }), 'a full basis normalises its drafts');
+  assert(internals.costOf(map, { symbol: 'NVDA', market: 'US' }) === null, 'a half-written basis is no position');
+  assert(internals.costOf(map, { symbol: 'BTC', market: 'US' }) === null, 'the market qualifies the key, so one symbol cannot borrow another book');
+  assert(internals.costOf(map, { symbol: 'AAPL', market: 'CRYPTO' }) === null, 'and the reverse holds too');
+  assert(internals.costOf(null, { symbol: 'AAPL', market: 'US' }) === null, 'a missing store is tolerated');
+  const held = internals.positionOf({ price: 200, currency: 'USD' }, { price: 180.5, shares: 10 });
+  assert(held.value === 2000 && held.basis === 1805 && held.pnl === 195, `value and cost come from the same numbers, got ${JSON.stringify(held)}`);
+  assert(Math.abs(held.pct - (195 / 1805) * 100) < 1e-9, 'the percentage is measured against the basis');
+  // A loss is negative, and a quote without a price is not worth a number.
+  assert(internals.positionOf({ price: 100 }, { price: 150, shares: 2 }).pnl === -100, 'a losing position reports a negative figure');
+  assert(internals.positionOf({ price: null }, { price: 150, shares: 2 }) === null, 'no live price means no valuation');
+  assert(internals.positionOf({ price: 100 }, null) === null, 'no basis means no position');
+  return 'basis drafts normalise, markets stay separate, value and P&L agree';
+});
+
 await check('session chip: NYSE holidays and early closes override the weekday clock', async () => {
   const zh = internals.makeT('zh');
   assert(internals.CSS.includes('.tm-session__note') && internals.CSS.includes('.tm-session--holiday'), 'the chip ships its note and holiday styles');
