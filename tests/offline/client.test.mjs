@@ -1332,9 +1332,12 @@ await check('watchlist: a held row says how much of the book it is', async () =>
   assert(internals.positionWeight(position(10, 'USD'), [{ currency: 'USD', value: 0 }]) === null, 'a zero book divides nothing')
   assert(internals.positionWeight(position(0, 'USD'), totals) === null, 'a zero value prints nothing')
 
-  assert(zh('{pct} of your {currency} positions', { pct: '25.0%', currency: 'USD' }) === 'USD 仓位里占 25.0%', 'the chip localises')
+  assert(zh('{pct} of your {currency} positions', { pct: '25.0%', currency: 'USD' }) === 'USD 仓位里占 25.0%', 'the tooltip localises')
   const row = String(internals.WatchRow)
-  assert(row.includes('tm-row__weight'), 'the row draws the chip')
+  assert(row.includes('tm-row__weight'), 'the row carries the weight')
+  assert(row.includes('Math.min(100, weight.pct)'), 'its length IS the percentage, clamped to the row')
+  assert(/\.tm-row__weight \{[^}]*position: absolute/.test(internals.CSS), 'the rule sits under the name instead of eating the column')
+  assert(/\.tm-row__main \{[^}]*position: relative/.test(internals.CSS), 'and is anchored to the cell it describes')
   assert(row.includes('POSITION_FOCUS_PCT'), 'and marks the heavy ones with the same threshold the notes use')
   assert(String(internals.WatchlistCard).includes('positionWeight('), 'the card feeds it from the book totals')
   assert(/\.tm-row__weight--heavy \{[^}]*--tm-warn/.test(internals.CSS), 'the heavy chip is amber, not another grey pill')
@@ -3506,6 +3509,24 @@ await check('watchlist: a held row says what today did to it, not only where it 
   return 'row day chip ok';
 });
 
+await check('watchlist: the column labels stand above the numbers they name', () => {
+  const card = String(internals.WatchlistCard);
+  const at = card.indexOf('tm-row tm-row--head');
+  assert(at > 0, 'the list draws a header row at all');
+  const head = card.slice(at, at + 2000);
+  assert(head.includes("{ className: 'tm-row__main' }"), 'the header builds the same main cell the row builds');
+  assert(/tm-row__sym[\s\S]{0,200}sortHeader\('symbol'/.test(head), 'the code label is drawn inside the code cell');
+  assert(/tm-row__quote[\s\S]{0,400}sortHeader\('price'/.test(head), 'the price label is drawn inside the price cell');
+  const css = internals.CSS;
+  assert(/\.tm-row \{[^}]*display: grid[^}]*grid-template-columns: minmax\(0, 1fr\)/.test(css), 'the row is a grid of fixed tracks, not a wrapping line');
+  assert(/\.tm-row__cost \{[^}]*grid-column: 1 \/ -1/.test(css), 'an open editor spans the row it belongs to');
+  assert(/\.tm-row__alert \{[^}]*grid-column: 1 \/ -1/.test(css), 'the alert editor spans it too');
+  assert(/\.tm-row__flag--cost, \.tm-row__flag--alertset \{[^}]*opacity: 0/.test(css), 'the two entries that offer something are not painted on every row');
+  assert(/\.tm-row:hover \.tm-row__flag--cost/.test(css), 'and they appear when the row is pointed at');
+  assert(internals.ZH['Record a position'] === '记持仓', 'a quiet entry is still a localised one');
+  return 'header and row share one contract';
+});
+
 await check('watchlist: the row can record the position it already reports', async () => {
   const draft = internals.costDraftOf
   assert(draft(null).price === '' && draft(null).shares === '', 'an unrecorded position prefills two empty fields');
@@ -3532,7 +3553,6 @@ await check('watchlist: the row can record the position it already reports', asy
   assert(row.includes('positionOf(quote, draftCost)'), 'the draft is priced live, before it is saved');
   assert(String(internals.WatchlistCard).includes('onSetCost: setCost'), 'the card hands the row its writer');
   assert(internals.CSS.includes('.tm-row__cost {'), 'the editor line has its own style hook');
-  assert(/\.tm-row \{[^}]*flex-wrap: wrap/.test(internals.CSS), 'the row can wrap to a second line');
 
   assert(internals.ZH['Record a position'] === '记持仓', 'the offer is localised');
   assert(internals.ZH['Click to edit the position'] === '点击可修改这笔持仓', 'the edit affordance is localised');
