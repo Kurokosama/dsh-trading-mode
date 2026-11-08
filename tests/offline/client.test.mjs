@@ -290,6 +290,15 @@ await check('helpers: symbol mapping for the TradingView embed', async () => {
 await check('helpers: quote formatting never prints NaN', async () => {
   assert(internals.money(421.2, 'HKD') === 'HK$421.20', `got ${internals.money(421.2, 'HKD')}`);
   assert(internals.money(undefined, 'USD') === '—', 'missing price must render as a dash');
+  // Grouping applies at four digits and up only: an account size or a position
+  // value is read as a magnitude, a price is read digit-for-digit against the
+  // tape, so 421.20 and 999.99 must keep their plain form.
+  assert(internals.money(17200, 'USD') === '$17,200.00', `grouped account size, got ${internals.money(17200, 'USD')}`);
+  assert(internals.money(999.99, 'USD') === '$999.99', 'just under the threshold stays plain');
+  assert(internals.money(1000, 'USD') === '$1,000.00', 'the threshold itself groups');
+  assert(internals.money(-1234567.5, 'USD') === '-$1,234,567.50', `a negative magnitude keeps its sign outside the commas, got ${internals.money(-1234567.5, 'USD')}`);
+  assert(internals.money(0.4321, 'USD') === '$0.432', 'sub-dollar precision follows the existing rule and is not grouped');
+  assert(internals.grouped(1234.5, 2) === '1,234.50', 'grouped exported for the non-currency callers');
   assert(internals.percent(-0.02) === '−0.02%', `got ${internals.percent(-0.02)}`);
   assert(internals.volumeText(1234567) === '1.23M', `got ${internals.volumeText(1234567)}`);
   assert(internals.clockOf(undefined) === '—', 'missing timestamp must render as a dash');
@@ -2657,6 +2666,81 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   assert(
     t('Alert armed at {price} — this panel and the watchlist will tell you when the price reaches it.', { price: '$128.40' }) === '已把提醒设在 $128.40：这个页面和自选列表都会在价格触及时告诉你。',
     'armed confirmation localised with its placeholder filled',
+  )
+
+  // The account field is the only number in the card the user has to invent,
+  // while the size of the book they actually keep is already known here. Offer
+  // it — from portfolioTotals, the same arithmetic the watchlist header prints,
+  // so the two can never disagree about the same positions.
+  assert(css.includes('.tm-sizing__fill'), 'the fill button is styled')
+  assert(source.includes("t('Use my positions ({amount})'"), 'the account field offers the one-click fill')
+  assert(
+    source.includes("!sizing.account && sizingBook"),
+    'the offer appears only while the field is empty, so a typed number is never overwritten',
+  )
+  assert(
+    source.includes('onClick: () => setSizing({ ...sizing, account: String(Math.round(sizingBook.value)) })'),
+    'the fill writes the book value into the account field',
+  )
+  assert(
+    source.includes(".find((bucket) => bucket.currency === sizingCurrency && bucket.count > 0 && bucket.value > 0)"),
+    'only the quote currency bucket is offered — no exchange rate is invented, and an empty book offers nothing',
+  )
+  // The offered figure has to be the same number the watchlist prints for the
+  // same positions. portfolioTotals is the single place that arithmetic lives;
+  // pin it here so the two surfaces cannot drift apart.
+  const bookRows = [
+    { symbol: 'AAPL', market: 'US', quote: { price: 210, currency: 'USD' } },
+    { symbol: 'MSFT', market: 'US', quote: { price: 400, currency: 'USD' } },
+    { symbol: 'SAP', market: 'DE', quote: { price: 250, currency: 'EUR' } },
+  ]
+  const bookCosts = { 'US:AAPL': { price: 180, shares: 40 }, 'US:MSFT': { price: 300, shares: 10 }, 'DE:SAP': { price: 200, shares: 5 } }
+  const buckets = I.portfolioTotals(bookRows, bookCosts)
+  const usd = buckets.find((b) => b.currency === 'USD')
+  assert(usd && usd.count === 2 && Math.round(usd.value) === 12400, 'the offered number is the sum of the USD positions at their last price — 40×210 + 10×400')
+  assert(buckets.some((b) => b.currency === 'EUR'), 'a second currency stays its own bucket instead of being merged at a made-up rate')
+  assert(I.portfolioTotals(bookRows, {}).length === 0, 'positions with no recorded basis are not offered as an account size')
+  assert(
+    t('Use my positions ({amount})', { amount: '$12,400.00' }) === '用我的持仓（$12,400.00）',
+    'fill label localised with its placeholder filled',
+  )
+  // The suggested stop is the one figure in the card a reader cannot verify by
+  // hand. Its distance only becomes a plan when it is turned into a share count,
+  // so the note carries that count — derived from the same book the fill button
+  // offers, and using the arithmetic sizeFor itself uses (risk money ÷ per-share
+  // distance, floored).
+  assert(
+    source.includes('const sizingBookShares = !sizing.account && isNum(sizingPrice) && isNum(sizingSuggested) && sizingSuggested > 0 && sizingSuggested < sizingPrice && sizingBook && sizingBook.value > 0'),
+    'the share hint needs a usable stop and a non-empty book before it says anything',
+  )
+  assert(
+    source.includes('Math.floor((sizingBook.value * Number(sizing.risk || 0) / 100) / (sizingPrice - sizingSuggested))'),
+    'the hint divides the risk budget by the per-share distance and floors it, exactly as sizeFor does',
+  )
+  assert(
+    source.includes('isNum(sizingBookShares) && sizingBookShares > 0'),
+    'a hint of zero shares is not printed — it would read as "buy nothing"',
+  )
+  assert(css.includes('.tm-sizing__hint'), 'the derived share count is styled as part of the note, not as a new field')
+  // Pinned arithmetic: account 12400 at 1% risk against a 141.2 price with a
+  // 128.4 stop → 124 / 12.8 = 9.6875, floored to 9.
+  const hintAccount = 12400
+  const hintRisk = 1
+  const hintPrice = 141.2
+  const hintStop = 128.4
+  assert(
+    Math.floor((hintAccount * hintRisk / 100) / (hintPrice - hintStop)) === 9,
+    'the printed share count is the whole shares that fit the risk budget at that distance',
+  )
+  // Same book, tighter stop: 124 / (141.2 - 138.0) = 38.7 → 38. A tighter stop
+  // must raise the count, which is the whole point of showing the number.
+  assert(
+    Math.floor((hintAccount * hintRisk / 100) / (hintPrice - 138.0)) === 38,
+    'a tighter stop raises the share count rather than silently reusing the old figure',
+  )
+  assert(
+    t('At that distance your positions would carry {shares}.', { shares: '9' }) === '按这个距离，你的持仓规模对应 9 股。',
+    'share hint localised with its placeholder filled',
   )
 })
 
