@@ -2699,15 +2699,26 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   )
   assert(t('Watch this stop') === '盯住这个止损', 'watch label localised')
 
-  // After arming, the card must say what is now armed — otherwise the click has
-  // no visible result and reads like a button that did nothing.
+  // A release before the plan had its own store wrote the suggested stop into the
+  // typed lower bound, so a saved panel can still hold that number unarmed. It is
+  // reported with the one sentence the card already uses for any other level: the
+  // same price described twice, once as an alert and once as this card's watch,
+  // reads like two settings rather than one fact.
   assert(
-    source.includes('myAlert && isNum(myAlert.below) && sizingSuggested && myAlert.below === sizingSuggested'),
-    'the confirmation is shown only when the stored bound really is the suggested one',
+    !source.includes('Alert armed at'),
+    'no second confirmation sentence exists for a stop the card already states',
   )
   assert(
-    t('Alert armed at {price} — this panel and the watchlist will tell you when the price reaches it.', { price: '$128.40' }) === '已把提醒设在 $128.40：这个页面和自选列表都会在价格触及时告诉你。',
-    'armed confirmation localised with its placeholder filled',
+    source.includes("!myStop && myAlert && isNum(myAlert.below) && sizingPrice && myAlert.below < sizingPrice"),
+    'a saved lower bound is offered as a watch, and only while nothing is armed',
+  )
+  assert(
+    source.includes('onClick: () => setStop({ symbol, market: hint }, myAlert.below)'),
+    'one click arms the stored level itself, not a re-derived number',
+  )
+  assert(
+    t('Arm this stop as a watch: {price}.', { price: '$128.40' }) === '把这个止损设为提醒：$128.40。',
+    'the carried-over level is offered in the same words as a typed one',
   )
 
   // The account field is the only number in the card the user has to invent,
