@@ -2136,7 +2136,47 @@ await check('price alerts: bounds are per market, and only a real price fires th
   assert(internals.alertHit(null, { above: 200, below: 150 }) === null, 'no price never fires');
   const text = internals.alertBoundsText({ above: 200, below: 150 }, zh, 'USD');
   assert(text.includes('高于') && text.includes('低于'), `the bound summary reads in the UI language: ${text}`);
-  return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm';
+
+  // The detail page states an armed stop on its alert line, so its own editor has
+  // to carry that level. A stated watch with a Save button beside it that does
+  // not write it is a control that contradicts the sentence above it — and the row
+  // editor already carries five fields, so two editors of one watch would give two
+  // answers. Asserted as source shape: the field lives inside a local useState the
+  // static render cannot open (see the row-editor check for the same limit), and
+  // the browser run measures the real layout.
+  const detail = String(internals.DetailView);
+  assert(detail.includes("t('stop (armed)')"), 'the detail editor names the plan with the same noun as the card and the row');
+  assert(detail.includes("className: 'tm-alertfield tm-alertfield--stop'"), 'and it is the same field shape, not a bespoke control');
+  assert(
+    detail.includes('setStop({ symbol, market: hint }, alertStop)'),
+    'Save writes the level it displays',
+  );
+  assert(
+    detail.includes("setAlert({ symbol, market: hint }, { above: null, below: null, loss: null, move: null })\n                    setStop({ symbol, market: hint }, null)"),
+    'Clear removes the whole watch — the bounds and the plan together',
+  );
+  assert(
+    detail.includes("myAlert || myStop\n            ? h(\n                'button'"),
+    'a page holding only an armed plan still offers Clear, not a dead end',
+  );
+  // The drafts follow the stored watch when the symbol changes (arrow-key walk).
+  // Without the plan in that key, navigating to the next name would leave the
+  // previous symbol's stop sitting in the field.
+  assert(
+    detail.includes("${myStop && myStop.price != null ? myStop.price : ''}"),
+    'the stored plan is part of the key the drafts reset on',
+  );
+  assert(
+    detail.includes("setAlertStop(myStop && myStop.price != null ? String(myStop.price) : '')"),
+    'and an armed plan appears in the field already filled, not blank',
+  );
+  // One read of the store for both consumers: the alert editor and the sizing card
+  // must report the same state, so the stop is resolved once at the top.
+  assert(
+    detail.includes('const myStop = stopOf(stops, { symbol, market: hint })'),
+    'the plan is read once for the whole page',
+  );
+  return 'bounds keyed by market, blank entries ignored, inclusive thresholds, no price no alarm, one editor per watch';
 });
 
 await check('alerts: the history leaves the panel as plain lines', () => {
