@@ -1246,20 +1246,26 @@ await check('detail page: dated events arrive in order and the calendar asks for
     if (Array.isArray(node)) return node.map(text).join(' ');
     return text((node.props || {}).children);
   };
-  const day = (y, m, d) => Date.UTC(y, m - 1, d, 15, 0);
+  // Built from the day the suite runs. `relativeDayOf` counts from the wall
+  // clock, so a calendar date hard-coded here reads correctly on one day and
+  // wrong on every later one; what is under test is the ordering and the
+  // countdown, not a particular week.
+  const today = new Date();
+  const day = (offset) => Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + offset, 15, 0);
+  const iso = (offset) => new Date(day(offset)).toISOString().slice(0, 10);
   const window = {
-    today: '2026-11-07',
-    bySymbol: { NVDA: { symbol: 'NVDA', date: '2026-11-20', session: 'post', epsForecast: 1.2, analysts: 41 } },
+    today: iso(0),
+    bySymbol: { NVDA: { symbol: 'NVDA', date: iso(13), session: 'post', epsForecast: 1.2, analysts: 41 } },
   };
-  // An ex-dividend day three days out and a report thirteen days out: the near
+  // An ex-dividend day two days out and a report thirteen days out: the near
   // one has to come first, otherwise the block is sorted by code order, not time.
-  const ordered = internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA');
+  const ordered = internals.upcomingStrips(window, { exDividendDate: day(2) }, 'NVDA');
   assert(ordered.length === 2, `both dated events must render, got ${ordered.length}`);
   assert(text(ordered[0]).includes('Ex-dividend'), 'the nearer event comes first');
   assert(text(ordered[1]).includes('Next earnings'), 'the report follows it');
   assert(text(ordered[0]).includes('own it before this day to collect'), 'the ex-dividend row carries the rule, not just the date');
   // A past ex-dividend day is history: the Market data cell already shows it.
-  const past = internals.upcomingStrips(window, { exDividendDate: day(2026, 10, 1) }, 'NVDA');
+  const past = internals.upcomingStrips(window, { exDividendDate: day(-40) }, 'NVDA');
   assert(past.length === 1 && text(past[0]).includes('Next earnings'), 'a past ex-dividend day stays off the strip');
   assert(internals.upcomingStrips(null, {}, 'NVDA').length === 0, 'no window and no profile means no strip');
   assert(internals.nextEarningsEvent(window, 'AAPL') === null, 'a ticker outside the window answers nothing');
@@ -1268,17 +1274,17 @@ await check('detail page: dated events arrive in order and the calendar asks for
   // The strip renders in whichever language the page is read in: the former
   // implementation called a module-level `t` that never existed, which threw on
   // every held name with a report inside the window.
-  const translated = internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA', zh);
+  const translated = internals.upcomingStrips(window, { exDividendDate: day(2) }, 'NVDA', zh);
   assert(translated.length === 2, 'both rows survive translation');
   assert(text(translated[0]).includes('除息日') && text(translated[0]).includes('想拿这次分红要在这天之前持有'), 'the ex-dividend rule localises');
   assert(text(translated[1]).includes('下次财报') && text(translated[1]).includes('13 天后'), 'the countdown localises too');
   assert(zh('own it before this day to collect') === '想拿这次分红要在这天之前持有', 'the rule is in the dictionary');
   assert(zh('Shares bought on or after this date do not carry the dividend, and the price opens lower by roughly the payment.').includes('除息日'), 'the tooltip localises');
-  assert(internals.relativeDayOf(day(2026, 10, 1), zh) === '', 'a past day answers nothing even in zh');
-  assert(internals.relativeDayOf(day(2026, 11, 9), zh) === '2 天后', 'the countdown reads from the date, not the render');
+  assert(internals.relativeDayOf(day(-40), zh) === '', 'a past day answers nothing even in zh');
+  assert(internals.relativeDayOf(day(2), zh) === '2 天后', 'the countdown reads from the date, not the render');
   // Render the strip for real: a text-walk cannot catch a missing class or an
   // element the browser would collapse, and this block sits in the page flow.
-  const html = renderToString(h('div', null, internals.upcomingStrips(window, { exDividendDate: day(2026, 11, 9) }, 'NVDA', zh)));
+  const html = renderToString(h('div', null, internals.upcomingStrips(window, { exDividendDate: day(2) }, 'NVDA', zh)));
   assert(html.includes('tm-earn') && html.includes('tm-earn__label'), 'the rows keep the strip structure');
   assert(html.indexOf('除息日') >= 0 && html.indexOf('除息日') < html.indexOf('下次财报'), 'the rendered HTML keeps the arrival order');
   assert(html.includes('想拿这次分红要在这天之前持有'), 'the rule survives rendering');
@@ -3444,6 +3450,41 @@ await check('watchlist: a held row says what today did to it, not only where it 
   assert(internals.ZH['Today, this position: {amount}'] === '这只今天：{amount}', 'the tooltip is localised');
   assert(internals.CSS.includes('.tm-row__flag--today'), 'the chip needs its own style hook');
   return 'row day chip ok';
+});
+
+await check('watchlist: the row can record the position it already reports', async () => {
+  const draft = internals.costDraftOf
+  assert(draft(null).price === '' && draft(null).shares === '', 'an unrecorded position prefills two empty fields');
+  assert(draft({ price: 200, shares: 10 }).price === '200' && draft({ price: 200, shares: 10 }).shares === '10', 'an existing one prefills as text, ready to edit');
+  assert(draft({ price: 200 }).price === '' && draft({ price: 200 }).shares === '', 'half an entry is no entry: nothing is prefilled');
+  assert(draft({ price: 'abc', shares: 10 }).price === '', 'a non-number does not become a value');
+
+  const quote = { price: 210, change: 10, changePct: 5, timestamp: '2026-11-07T15:30:00Z', currency: 'USD' };
+  const writer = () => {};
+  const item = { symbol: 'AAPL', market: 'US', isFavorite: false, quote };
+  const plain = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, onSetCost: writer }));
+  assert(plain.includes('tm-row__flag--cost') && plain.includes('Record a position'), `a watched name offers the entry where the numbers already are, got ${plain.slice(0, 300)}`);
+  const mute = renderToString(h(internals.WatchRow, { item, index: 0, count: 1 }));
+  assert(!mute.includes('tm-row__flag--cost'), 'without a writer the row makes no promise it cannot keep');
+  const owned = renderToString(h(internals.WatchRow, { item: { symbol: 'AAPL', market: 'US', isFavorite: false, quote }, index: 0, count: 1, cost: { price: 200, shares: 10 } }));
+  assert(owned.includes('tm-row__flag--edit'), 'the P&L flag is the way to edit what was recorded');
+  assert(!owned.includes('tm-row__flag--cost'), 'a row that is already a position does not ask to be recorded');
+  assert(owned.includes('Click to edit the position'), 'and says so in the tooltip');
+
+  const row = String(internals.WatchRow);
+  assert(row.includes('costDraftOf(cost)'), 'the fields prefill from the stored entry');
+  assert(row.includes('onSetCost(item, { price: costDraft.price, shares: costDraft.shares })'), 'saving writes the same local store the detail page writes');
+  assert(row.includes("t('Save position')") && row.includes("t('Clear')"), 'commit and remove are both reachable from the row');
+  assert(row.includes('positionOf(quote, draftCost)'), 'the draft is priced live, before it is saved');
+  assert(String(internals.WatchlistCard).includes('onSetCost: setCost'), 'the card hands the row its writer');
+  assert(internals.CSS.includes('.tm-row__cost {'), 'the editor line has its own style hook');
+  assert(/\.tm-row \{[^}]*flex-wrap: wrap/.test(internals.CSS), 'the row can wrap to a second line');
+
+  assert(internals.ZH['Record a position'] === '记持仓', 'the offer is localised');
+  assert(internals.ZH['Click to edit the position'] === '点击可修改这笔持仓', 'the edit affordance is localised');
+  assert(internals.ZH['Fill in both fields to see what the position is worth'].includes('两个都填'), 'the empty preview is localised');
+  assert(internals.ZH['Cancel'] === '取消', 'and so is the way out');
+  return 'row cost entry ok';
 });
 
 await check('watchlist: a position missing from the list is called out, not silently dropped', async () => {
