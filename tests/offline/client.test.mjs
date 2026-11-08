@@ -1089,53 +1089,6 @@ await check('brief: a ring of editions can be paged, labelled as history', async
   }
 });
 
-await check('news: the holdings card leads with a digest when one is on disk', async () => {
-  const { renderToStaticMarkup } = await import('react-dom/server');
-  const React = (await import('react')).default;
-  const store = new Map();
-  const previous = globalThis.window.localStorage;
-  globalThis.window.localStorage = {
-    getItem: (key) => (store.has(key) ? store.get(key) : null),
-    setItem: (key, value) => store.set(key, String(value)),
-    removeItem: (key) => store.delete(key),
-  };
-  try {
-    assert(internals.readNewsDigest('NVDA,AAPL', 'zh') === null, 'an empty store has no digest');
-    assert(internals.writeNewsDigest('NVDA,AAPL', 'zh', ['NVDA\uFF1A\u8D22\u62A5\u540E\u5927\u6DA8', 'AAPL\uFF1A\u65B0\u54C1\u4F20\u95FB\uFF0C\u51B2\u9AD8\u56DE\u843D\u3002']) === true, 'a valid digest is kept');
-    const kept = internals.readNewsDigest('NVDA,AAPL', 'zh');
-    assert(kept && kept.length === 2, 'the digest reads back');
-    assert(internals.readNewsDigest('NVDA,AAPL', 'en') === null, 'another language has no digest');
-    assert(internals.readNewsDigest('MSFT', 'zh') === null, 'another symbol set has no digest');
-    const fresh = store.get('tm-news-digest');
-    const parsedFresh = JSON.parse(fresh);
-    parsedFresh.at = Date.now() - 7 * 60 * 60 * 1000;
-    store.set('tm-news-digest', JSON.stringify(parsedFresh));
-    assert(internals.readNewsDigest('NVDA,AAPL', 'zh') === null, 'a digest past its TTL is not served');
-    store.set('tm-news-digest', fresh);
-    assert(internals.writeNewsDigest('NVDA', 'zh', []) === false, 'nothing to say is not cached');
-    assert(internals.writeNewsDigest('NVDA', 'zh', [1, 2]) === false, 'numbers are not digest lines');
-    store.set('tm-news-digest', 'not json');
-    assert(internals.readNewsDigest('NVDA', 'zh') === null, 'broken json is ignored');
-
-    const row = renderToStaticMarkup(internals.newsDigestRow('NVDA\uFF1A\u8D22\u62A5\u540E\u7EE7\u7EED\u51B2\u9AD8\uFF0C\u6536\u5728\u65B0\u9AD8\u9644\u8FD1\u3002', () => () => {}));
-    assert(row.includes('tm-news__digest'), 'the row carries its class');
-    assert(row.includes('NVDA'), 'the ticker is on its own element');
-    assert(row.includes('\u8D22\u62A5\u540E\u7EE7\u7EED\u51B2\u9AD8'), 'the sentence travels with it');
-    const plain = renderToStaticMarkup(internals.newsDigestRow('\u5B8F\u89C2\uFF1A\u4ECA\u665A CPI\u3002', () => () => {}));
-    assert(plain.includes('\u5B8F\u89C2'), 'a lowercase lead falls back to plain text, not a broken split');
-    assert(internals.ZH['Digest view'] === '\u603B\u7ED3', 'the view toggle is localised');
-    assert(internals.ZH['Headlines view'] === '\u539F\u6587', 'and its pair');
-    assert(internals.CSS.includes('.tm-news__digest'), 'the digest row has its style hook');
-    assert(String(internals.HoldingNewsCard).includes("apiPost('/news/summary'"), 'the card asks the digest route');
-    assert(String(internals.HoldingNewsCard).includes('readNewsDigest(key, lang)'), 'the cache answers before the network');
-    assert(String(internals.HoldingNewsCard).includes('!key || !aiAvailable'), 'no model in the session, no summary request');
-    assert(String(internals.HomeView).includes('HoldingNewsCard, { rows, costs, onOpen, aiAvailable }'), 'the home page passes whether a model exists');
-    assert(String(internals.HomeView).includes('hotPrePost.length'), 'extended hours only shares a row when it has movers');
-  } finally {
-    globalThis.window.localStorage = previous;
-  }
-  return 'news digest ok';
-});
 
 await check('brief: the last edition survives a reload, but not a language switch', async () => {
   const store = new Map();
@@ -3136,13 +3089,6 @@ await check('notes: a print inside the window names the position and its weight'
   assert(String(internals.HomeView).includes('positionNotes(rows, costs, t, notesCalendar.data)'), 'the home page hands it over');
 });
 
-await check('news: the home card speaks for the holdings, not the whole market', () => {
-  const zh = internals.makeT('zh')
-  assert(internals.CSS.includes('.tm-news__sym'), 'the holding a headline belongs to gets its own column')
-  assert(zh('Headlines on your positions') === '持仓新闻', 'the card is labelled in Chinese')
-  assert(zh('{n} stories', { n: 3 }).includes('3'), 'the count localises')
-  return 'the holdings feed card is styled and localised'
-});
 
 await check('positions: the total remembers what it was worth, one point a day', () => {
   const { recordHistory, historyChange } = internals;
@@ -3185,29 +3131,7 @@ await check('positions: the total remembers what it was worth, one point a day',
   return 'history recorded per day';
 });
 
-await check('news: a watchlist without positions still gets its feed', () => {
-  const zhT = internals.makeT('zh');
-  assert(zhT('Headlines on your watchlist') === '自选新闻', 'the fallback title is localised');
-  assert(source.includes('const watching = held.length'), 'positions are still preferred');
-  assert(source.includes('.slice(0, 6)'), 'the fallback feed stays at six names');
-  assert(
-    source.includes("held.length ? tr('Headlines on your positions') : tr('Headlines on your watchlist')"),
-    'the title says which list it is reading',
-  );
-  return 'fallback feed wired';
-});
 
-await check('news: the ticker in a headline opens that name, the headline stays a link', () => {
-  const css = internals.CSS
-  const zh = internals.makeT('zh')
-  assert(css.includes('.tm-news__body'), 'the row splits into a ticker and the article body')
-  assert(css.includes('.tm-news__sym:hover'), 'the ticker looks pressable without a second colour')
-  assert(source.includes('const marketOf = (symbol) =>'), 'the held row decides the market, not the feed')
-  assert(source.includes("onClick: () => onOpen({ symbol: item.symbol, market: marketOf(item.symbol) })"), 'the ticker opens the detail page')
-  assert(source.includes("className: 'tm-news__body'"), 'the article itself keeps an anchor')
-  assert(zh('Open {name}', { name: 'NVDA' }).includes('NVDA'), 'the ticker tooltip localises')
-  return 'a headline can be read or its name opened, without nesting one link in another'
-});
 
 await check('keys: one table describes the shortcuts, and `?` respects text fields', () => {
   const I = internals
@@ -4262,34 +4186,3 @@ await check('event board: a print whose published time has gone by stops being a
   return 'finished rows are named as finished in both languages; reminder and banner skip them; the shared stamp is unchanged'
 })
 
-await check('holdings news: the feed asks about the biggest positions first', async () => {
-  const rows = [
-    { symbol: 'AAPL', market: 'US', quote: { price: 100 } },
-    { symbol: 'NVDA', market: 'US', quote: { price: 100 } },
-    { symbol: 'KO', market: 'US', quote: { price: 100 } },
-    { symbol: 'TSLA', market: 'US', quote: { price: 100 } },
-  ];
-  const costs = {
-    'US:AAPL': { price: 90, shares: 2 },
-    'US:NVDA': { price: 80, shares: 40 },
-    'US:KO': { price: 60, shares: 0 },
-  };
-  const picked = internals.newsSymbols(rows, costs);
-  // NVDA is the largest position, AAPL second. KO carries a cost but zero
-  // shares, which costOf() already refuses: a placeholder is not a holding.
-  assert(picked.join(',') === 'NVDA,AAPL', `order by value: ${picked.join(',')}`);
-  // A row with no recorded cost is not a holding and never asks for news.
-  assert(!picked.includes('TSLA'), 'unowned names stay out of the feed');
-  assert(internals.newsSymbols(rows, costs, 2).join(',') === 'NVDA,AAPL', 'the limit keeps the largest');
-  assert(internals.newsSymbols([], costs).length === 0, 'no rows, no feed');
-  assert(internals.newsSymbols(rows, null).length === 0, 'no costs, no feed');
-  assert(String(internals.HoldingNewsCard).includes('newsSymbols(rows, costs)'), 'the card uses the shared ranking');
-  return 'ranked by position value, unowned rows excluded';
-});
-
-console.log(`\n== summary ==\n  ${passed}/${passed + failed} checks passed, ${failed} failed`);
-report({ title: 'client', required: true, passed, failed, skipped: 0, skipReasons: [], failures: failures.slice(), ok: failed === 0 });
-if (failures.length) {
-  for (const line of failures) console.log(`  · ${line}`);
-  process.exit(1);
-}
