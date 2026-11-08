@@ -2796,6 +2796,33 @@ await check('sizing: shares follow the money at risk, and a stop above the price
     'share hint localised with its placeholder filled',
   )
 
+  // A stop is a level on one name's price; the account and the risk share are
+  // habits of the account. The draft lives under a single key, so without a
+  // symbol on it every name inherits the last typed stop — a $128 stop kept for
+  // a $890 quote is not a plan, it is arithmetic that never meant anything.
+  assert(
+    source.includes("const carried = parsed.symbol == null || String(parsed.symbol) === String(symbol)"),
+    'a stored draft is read as belonging to the symbol it was saved for',
+  )
+  assert(
+    source.includes("stop: carried ? String(parsed.stop == null ? '' : parsed.stop) : ''"),
+    'the stop is dropped when the draft came from another symbol',
+  )
+  assert(
+    source.includes("window.localStorage.setItem('tm-sizing', JSON.stringify({ ...sizing, symbol }))"),
+    'the stored draft records which symbol it belongs to',
+  )
+  // Dropping a value the reader typed is only honest if the card says it did.
+  assert(source.includes('const sizingCrossNote = sizing.carried === false && Boolean(sizing.account)'), 'the note appears only when something was actually dropped, and only with an account to explain')
+  assert(
+    source.includes("t('The account size carries over from your last plan; the stop price does not, because it belongs to another symbol.')"),
+    'the card states which half of the draft survived',
+  )
+  assert(
+    t('The account size carries over from your last plan; the stop price does not, because it belongs to another symbol.') === '账户规模沿用了你上一笔计划；止损位不沿用，因为它属于另一只标的。',
+    'the cross-symbol note localised',
+  )
+
   // The watch is its own store, not a fifth alert field. The sizing draft is one
   // shared draft across every symbol (localStorage 'tm-sizing'), so folding an
   // armed stop into 'tm-alerts' would give all of them the same stop.
