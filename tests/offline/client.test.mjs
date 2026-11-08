@@ -2792,6 +2792,47 @@ await check('sizing: shares follow the money at risk, and a stop above the price
     source.includes('onClick: () => setStop({ symbol, market: hint }, null)'),
     'the control can be turned off again from the same line',
   )
+
+  // The risk field is the one input on this card that accepts a number which no
+  // longer means anything: sizeFor answers shares whose cost exceeds the
+  // account. The ceiling is stated so the reader is not left to guess which of
+  // the two figures they meant.
+  assert(typeof I.suggestRiskWithinPosition === 'function', 'the ceiling has its own helper')
+  // $10,000 account, a $12.80 stop distance on a $141.20 quote: 9% risks $900
+  // and buys 70 shares ($9,884, fits); 10% buys 78 shares ($11,013, does not).
+  assert(I.suggestRiskWithinPosition(141.2, 128.4, 10000) === 9, 'the ceiling is the largest whole percent whose position fits')
+  // A tight stop needs very little risk money per share, so a large percent is
+  // still only a partial position: 2% buys 62 shares ($8,754), 3% buys 93
+  // ($13,131). The answer follows the distance; there is no fixed rule.
+  assert(I.suggestRiskWithinPosition(141.2, 138.0, 10000) === 2, 'a tight stop has a different ceiling, and it is lower here because the shares are dearer than the risk money')
+  // A wide distance on a small book: no whole percent reaches even one share, so
+  // there is no ceiling to state.
+  assert(I.suggestRiskWithinPosition(141.2, 1.2, 100) === null, 'a book that cannot reach one share at any whole percent answers nothing')
+  assert(I.suggestRiskWithinPosition(141.2, 150, 10000) === null, 'a stop above the price has no ceiling to state')
+  assert(I.suggestRiskWithinPosition(null, 128.4, 10000) === null, 'a missing quote answers nothing')
+  assert(I.suggestRiskWithinPosition(141.2, 128.4, 0) === null, 'an empty account answers nothing')
+  // The plan and the ceiling must agree: whatever the helper names, sizeFor at
+  // that percent has to be inside the account, and one percent above it not.
+  {
+    const cap = I.suggestRiskWithinPosition(141.2, 128.4, 10000)
+    const fits = I.sizeFor(141.2, 128.4, 10000, cap)
+    const over = I.sizeFor(141.2, 128.4, 10000, cap + 1)
+    assert(fits && fits.value <= 10000, 'the named ceiling keeps the position inside the account')
+    assert(over && over.value > 10000, 'one percent above it does not — that is why the line exists')
+  }
+  assert(css.includes('.tm-sizing__risk'), 'the offer is styled like the other field offers')
+  assert(
+    source.includes('sizingRiskOver') && source.includes('const sizingRiskOver = isNum(sizingRiskCeiling) && Number(sizing.risk) > sizingRiskCeiling'),
+    'the line appears only when the typed risk is actually over the ceiling',
+  )
+  assert(
+    source.includes('onClick: () => setSizing({ ...sizing, risk: String(sizingRiskCeiling) })'),
+    'one click puts the ceiling in the field',
+  )
+  assert(
+    t('The most this position can risk is {pct}%', { pct: '9' }) === '这笔仓位最多能承担 9% 的风险',
+    'the ceiling is stated in Chinese with its placeholder filled',
+  )
 })
 
 await check('earnings surprises: quarters read as quarters, and the bars are scaled', () => {
