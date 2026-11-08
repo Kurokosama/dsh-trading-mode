@@ -3487,6 +3487,47 @@ await check('watchlist: the row can record the position it already reports', asy
   return 'row cost entry ok';
 });
 
+await check('watchlist: the row can arm the watch it already reports', async () => {
+  const draft = internals.alertDraftOf
+  assert(draft(null).above === '' && draft(null).below === '' && draft(null).loss === '' && draft(null).move === '', 'an unarmed row prefills four empty boxes');
+  const armedDraft = draft({ above: 180, below: 120, loss: 8, move: 5 });
+  assert(armedDraft.above === '180' && armedDraft.below === '120' && armedDraft.loss === '8' && armedDraft.move === '5', 'an armed one prefills as text, ready to edit');
+  assert(draft({ below: 120 }).above === '' && draft({ below: 120 }).below === '120', 'each bound stands on its own, so editing one keeps the others visible');
+  assert(draft({ above: 'abc' }).above === '', 'a non-number is not a bound');
+
+  const quote = { price: 210, change: 10, changePct: 5, timestamp: '2026-11-07T15:30:00Z', currency: 'USD' };
+  const item = { symbol: 'AAPL', market: 'US', isFavorite: false, quote };
+  const writer = () => {};
+
+  const bare = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, onSetAlert: writer }));
+  assert(bare.includes('tm-row__flag--alertset') && bare.includes('Set an alert'), 'a name with no watch offers the fields where the row already is');
+  const mute = renderToString(h(internals.WatchRow, { item, index: 0, count: 1 }));
+  assert(!mute.includes('tm-row__flag--alertset'), 'without a writer the row offers a door it cannot open');
+
+  const armedRow = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, alert: { above: 220, below: 190 }, onSetAlert: writer }));
+  assert(armedRow.includes('tm-row__flag--edit'), 'the chip is the way to edit what was armed');
+  assert(armedRow.includes('Click to edit the alert'), 'and says so in the tooltip');
+  assert(!armedRow.includes('tm-row__flag--alertset'), 'a row that already watches does not ask to start');
+  const read = renderToString(h(internals.WatchRow, { item, index: 0, count: 1, alert: { above: 220 } }));
+  assert(read.includes('tm-row__flag--alert') && !read.includes('tm-row__flag--edit'), 'read-only rendering still reports the watch, without promising an editor');
+
+  const row = String(internals.WatchRow);
+  assert(row.includes('alertDraftOf(alert)'), 'the fields prefill from the armed watch');
+  assert(row.includes('onSetAlert(alertTarget, { above: alertDraft.above, below: alertDraft.below, loss: alertDraft.loss, move: alertDraft.move })'), 'saving writes the same local store the detail page writes');
+  assert(row.includes("t('Save alert')"), 'commit is reachable from the row');
+  for (const key of ['above', 'below', 'max loss', 'day move']) {
+    assert(row.includes(`t('${key}')`), `the row reuses the detail page's own field label ${key}`);
+  }
+  assert(String(internals.WatchlistCard).includes('onSetAlert: setAlert'), 'the card hands the row its writer');
+  assert(internals.CSS.includes('.tm-row__alert {'), 'the editor line has its own style hook');
+  assert(internals.CSS.includes('.tm-row__flag--alertset'), 'and so does the quiet entry chip');
+
+  assert(internals.ZH['Set an alert'] === '设提醒', 'the offer is localised');
+  assert(internals.ZH['Click to edit the alert'] === '点击可修改这条提醒', 'the edit affordance is localised');
+  assert(internals.ZH['A watch on price, drawdown or a one-day move — armed here, without opening the page'].includes('不用打开页面'), 'the tooltip is localised');
+  return 'row alert entry ok';
+});
+
 await check('watchlist: a position missing from the list is called out, not silently dropped', async () => {
   const orphans = internals.orphanHoldings;
   const rows = [{ symbol: 'AAPL', market: 'US', quote: { price: 210 } }]
