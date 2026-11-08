@@ -1482,6 +1482,60 @@ await check('detail page: a month of relative strength sits next to the day', as
   assert(/\.tm-rel__rs::before \{[^}]*content/.test(internals.CSS), 'a dot separates it from the day figure')
 })
 
+await check('chart: the name is drawn against its sector on a scale of its own', async () => {
+  const { relativeAgainstBenchmark, BenchmarkRelative } = internals;
+  const zh = internals.makeT('zh');
+  const day = (offset) => Date.UTC(2026, 9, 1 + offset);
+  const iso = (offset) => new Date(day(offset)).toISOString().slice(0, 10);
+  const build = (n) => ({
+    stock: Array.from({ length: n }, (_, i) => ({ timestamp: day(i * 2), close: 100 + i })),
+    bench: Array.from({ length: n }, (_, i) => ({ timestamp: day(i * 2), close: 50 + i })),
+  });
+  const { stock, bench } = build(20);
+  const rel = relativeAgainstBenchmark(stock, bench);
+  assert(rel && rel.points.length === 20, 'the dates both series carry are drawn');
+  assert(rel.from === iso(0) && rel.to === iso(38), 'the window is the shared dates, not the chart range');
+  assert(Math.abs(rel.points[0].value - 100) < 1e-9, 'the first shared date is the base');
+  // 119/69 against 100/50: the name fell relative to the sector, and the line
+  // has to say that rather than showing an ETF line under a stock line.
+  const expected = (119 / 69 / (100 / 50)) * 100;
+  assert(Math.abs(rel.points[19].value - expected) < 1e-6, 'a point is the close ratio rebased to 100');
+  assert(Math.abs(rel.gap - (expected - 100)) < 1e-6, 'the gap is the distance from parity');
+  assert(Math.abs(rel.high - 100) < 1e-9 && Math.abs(rel.low - expected) < 1e-6, 'the drawn range is the drawn line');
+  // A benchmark session the name did not trade in is not evidence of anything.
+  assert(relativeAgainstBenchmark(stock, bench.concat([{ timestamp: day(60), close: 70 }])).points.length === 20, 'an unmatched benchmark day adds nothing');
+  const dropped = relativeAgainstBenchmark(stock.slice(0, 10).concat(stock.slice(11)), bench);
+  assert(dropped.points.length === 19 && dropped.points.every((p) => p.day !== iso(20)), 'a date only one side carries is skipped');
+  assert(dropped.from === iso(0) && dropped.to === iso(38), 'and the window still names its real ends');
+  // Two prints on one day: the later one is the close.
+  const dup = relativeAgainstBenchmark(stock.concat([{ timestamp: day(6), close: 1234 }]), bench);
+  assert(dup.points.length === 20, 'a repeated day draws one point, not two');
+  assert(Math.abs(dup.points[3].value - ((1234 / 53 / (100 / 50)) * 100)) < 1e-6, 'and the later print wins');
+  assert(relativeAgainstBenchmark(stock.slice(0, 14), bench) === null, 'fourteen shared sessions is not a trend');
+  assert(relativeAgainstBenchmark([], []) === null, 'nothing to compare yields nothing');
+  assert(relativeAgainstBenchmark(null, null) === null && relativeAgainstBenchmark(stock, []) === null, 'a missing side yields nothing');
+  assert(relativeAgainstBenchmark([{ timestamp: day(0), close: 0 }].concat(stock), bench).points.length === 20, 'a zero close is skipped, not made into a ratio');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const React = (await import('react')).default;
+  const tile = { label: 'Information Technology', symbol: 'XLK' };
+  const html = renderToStaticMarkup(React.createElement(BenchmarkRelative, { rel, tile }));
+  assert(html.includes('class="tm-relchart__line"'), 'the comparison is a drawn line');
+  assert(html.includes('class="tm-relchart__zero"'), 'parity is drawn, not implied');
+  assert(html.includes('aria-label="Information Technology \u00b7 XLK relative line'), 'and the picture says what it is');
+  assert(html.includes('Lagged its sector by'), 'a lag is named as a lag');
+  assert(html.includes(`${Math.abs(rel.gap).toFixed(1)}%`), 'the sentence carries the distance the maths produced');
+  assert(!/sector by -/.test(html), 'the verb carries the direction, so the number never doubles it');
+  assert(renderToStaticMarkup(React.createElement(BenchmarkRelative, { rel: null, tile })) === '', 'no comparison, no picture');
+  assert(zh('Against {bench}', { bench: 'XLK' }) === '对比 XLK', 'the benchmark is named in both languages');
+  assert(internals.ZH['Lagged its sector by {gap} over {n}'].includes('跑输'), 'and so is the verdict');
+  const source = String(internals.DetailView);
+  assert(source.includes("relativeAgainstBenchmark(bars, benchmarkBars)"), 'the page builds it from the bars it already loaded');
+  assert(source.includes("barSize === '1d'"), 'and only on a daily chart, where both sides share a sampling window');
+  assert(source.includes('BenchmarkRelative'), 'drawn under the candles it belongs to');
+  assert(/\.tm-relchart__zero \{[^}]*dasharray/.test(internals.CSS), 'parity is a dashed line');
+  return 'relative line ok';
+});
+
 await check('analyst card: the mix and the grade changes are read, not just listed', async () => {
   const zh = internals.makeT('zh');
   const day = 86_400_000;
