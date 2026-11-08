@@ -1419,6 +1419,15 @@ await check('detail page: a macro print inside two days is flagged before the re
   assert(note([], en) === null, 'an empty table says nothing')
   assert(note(null, en) === null, 'a failed request says nothing')
 
+  // The detail page hands this helper what `/macro` actually answers: an envelope
+  // object with the releases under `events` (lib/trading/api.js). Passing that
+  // object used to throw "rows.find is not a function" and blank the whole page.
+  const envelope = { today: '2026-11-10', verifiedOn: 'x', count: 1, events: [{ kind: 'cpi', date: '2026-11-11', time: '08:30', days: 1 }] }
+  const fromEnvelope = note(envelope, en)
+  assert(fromEnvelope && fromEnvelope.when === 'tomorrow' && fromEnvelope.title === 'US CPI', 'the helper reads the events list out of the envelope')
+  assert(note({ today: '2026-11-10', count: 0, events: [] }, en) === null, 'an empty envelope still says nothing')
+  assert(note({ today: '2026-11-10' }, en) === null, 'an envelope with no events list does not throw')
+
   const cn = note([{ kind: 'fomc', date: '2026-11-10', time: '14:00', days: 0 }], zh)
   assert(cn.when === '今天' && cn.detail === 'ET 14:00', 'the Chinese note keeps the time code')
   assert(cn.impact.includes('整盘会一起重新定价'), 'and its own impact sentence')
@@ -2596,6 +2605,17 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   assert(I.suggestStop(100, { ma20: 96 }) === 96, 'the 20-day line when there is no range')
   assert(I.suggestStop(100, { ma20: 104 }) === null, 'a 20-day line above the price is no stop')
   assert(I.suggestStop(null, { atr14: 2 }) === null, 'no price, no suggestion')
+
+  // The suggestion must be adoptable in one click: the note carries a button
+  // that writes it into the stop field, and its label is localised. Without
+  // this the card prints advice the reader has to retype by hand.
+  assert(css.includes('.tm-sizing__use'), 'adopt-the-suggestion button styled')
+  assert(source.includes("t('Use the suggested stop')"), 'the note renders the adopt button')
+  assert(
+    source.includes('setSizing({ ...sizing, stop: String(sizingSuggested) })'),
+    'the button writes the suggestion into the stop field',
+  )
+  assert(t('Use the suggested stop') === '使用建议止损', 'adopt label localised')
 })
 
 await check('earnings surprises: quarters read as quarters, and the bars are scaled', () => {
