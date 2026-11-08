@@ -1335,12 +1335,13 @@ await check('watchlist: a held row says how much of the book it is', async () =>
   assert(zh('{pct} of your {currency} positions', { pct: '25.0%', currency: 'USD' }) === 'USD 仓位里占 25.0%', 'the tooltip localises')
   const row = String(internals.WatchRow)
   assert(row.includes('tm-row__weight'), 'the row carries the weight')
-  assert(row.includes('Math.min(100, weight.pct)'), 'its length IS the percentage, clamped to the row')
-  assert(/\.tm-row__weight \{[^}]*position: absolute/.test(internals.CSS), 'the rule sits under the name instead of eating the column')
-  assert(/\.tm-row__main \{[^}]*position: relative/.test(internals.CSS), 'and is anchored to the cell it describes')
+  assert(row.includes("style: { '--tm-weight-share'"), 'the share is handed to the meter as a fill on its track')
+  assert(/\.tm-row__weight \{[^}]*position: absolute/.test(internals.CSS), 'it sits under the name instead of eating the column')
+  assert(/\.tm-row__weight \{[^}]*width: 64px/.test(internals.CSS), 'the track has a fixed length, so a length means the same thing on every row and every screen')
+  assert(/\.tm-row__weight::after \{[^}]*var\(--tm-weight-share/.test(internals.CSS), 'and the fill is drawn on that track, never past it')
   assert(row.includes('POSITION_FOCUS_PCT'), 'and marks the heavy ones with the same threshold the notes use')
   assert(String(internals.WatchlistCard).includes('positionWeight('), 'the card feeds it from the book totals')
-  assert(/\.tm-row__weight--heavy \{[^}]*--tm-warn/.test(internals.CSS), 'the heavy chip is amber, not another grey pill')
+  assert(/\.tm-row__weight--heavy::after \{[^}]*--tm-warn/.test(internals.CSS), 'a heavy position turns the fill amber, not another grey pill')
 })
 
 await check('events: an earnings date on a name you hold is priced, not just dated', async () => {
@@ -3508,6 +3509,29 @@ await check('watchlist: a held row says what today did to it, not only where it 
   assert(internals.CSS.includes('.tm-row__flag--today'), 'the chip needs its own style hook');
   return 'row day chip ok';
 });
+
+await check('watchlist: nothing a row draws reaches past the card that holds it', () => {
+  // Two defects made the panel look like its contents were spilling out of the
+  // cards, and neither one is visible in markup — only in computed geometry.
+  // (1) box-sizing was declared on three containers; it is not inherited, so any
+  //     row or chip with width: 100% plus padding printed ~20px past its card.
+  // (2) the event rows used a hand-copied indent for the impact line instead of
+  //     the column the name actually starts in, so the sentence explaining an
+  //     event printed half a column to the left of it.
+  assert(/\.tm-page \*, \.tm-page \*::before, \.tm-page \*::after \{[^}]*box-sizing: border-box/.test(internals.CSS),
+    'every element inside the panel measures its own padding')
+  // The chart frame is the case that makes the reset load-bearing: it is the one
+  // box in the panel that declares width: 100% AND a border, so without the reset
+  // it is exactly 2px wider than the card holding it.
+  assert(/\.tm-frame \{[^}]*width: 100%[^}]*border/.test(internals.CSS), 'the chart frame asks for the full width and then adds a border')
+  assert(!/\.tm-frame \{[^}]*box-sizing/.test(internals.CSS), 'and relies on the reset rather than repeating it')
+  assert(/\.tm-ev__row \{[^}]*display: grid/.test(internals.CSS), 'an event row is a column grid, not an indent copied by hand')
+  assert(/\.tm-ev__top \{ display: contents/.test(internals.CSS), 'its first line joins that grid instead of nesting inside it')
+  assert(/\.tm-ev__impact \{[^}]*grid-column: 3/.test(internals.CSS), 'the impact line sits in the column the event name starts in')
+  assert(!internals.CSS.includes('padding-left: 83px'), 'no hand-measured indent survives the change')
+  assert(/\.tm-row__name \{[^}]*flex: 0 1 auto/.test(internals.CSS),
+    'a name takes the width its text needs and shrinks first, so a flag stays beside the row it describes')
+})
 
 await check('watchlist: the column labels stand above the numbers they name', () => {
   const card = String(internals.WatchlistCard);
