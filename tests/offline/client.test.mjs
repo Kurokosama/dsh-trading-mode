@@ -860,6 +860,92 @@ await check('load: a fault while the factory body runs paints the banner, not bl
   return 'load crash banner covered';
 });
 
+await check('load: the banner offers a reload, not just a description', async () => {
+  // A load fault leaves the panel permanently blank, so a banner that only
+  // describes the failure is a dead end. The banner must name the remedy and
+  // wire it to the one action that can actually retry: a window reload.
+  const mount = (reload) => {
+    const created = []
+    const paint = () => {
+      const node = {
+        tag: 'div',
+        textContent: '',
+        attrs: {},
+        children: [],
+        handlers: {},
+        setAttribute: (k, v) => { node.attrs[k] = v },
+        appendChild: (child) => { node.children.push(child); return child },
+        addEventListener: (type, fn) => { node.handlers[type] = fn },
+      }
+      created.push(node)
+      return node
+    }
+    const body = { appendChild: (node) => created.push(node) }
+    return {
+      created,
+      paint,
+      document: { body, createElement: paint },
+      location: { reload },
+    }
+  }
+  const previous = globalThis.window
+  const previousDoc = globalThis.document
+  const previousLoc = globalThis.location
+  try {
+    let reloads = 0
+    const host = mount(() => { reloads += 1 })
+    globalThis.window = { __ModuleLoader__: { load: (spec) => { globalThis.__dshLoad = spec } }, document: host.document }
+    globalThis.document = host.document
+    globalThis.location = host.location
+    new Function(readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8'))()
+    const spec = globalThis.__dshLoad
+    delete globalThis.__dshLoad
+    const broken = () => { throw new Error('boom during require') }
+    spec.factory(broken)
+    const box = host.created[host.created.length - 1]
+    assert(box.children.length === 3, `the banner stacks headline, hint and button, got ${box.children.length}`)
+    assert(box.children[0].textContent.indexOf('[trading-mode] The panel could not start.') === 0, 'the headline carries the plugin tag')
+    assert(box.children[1].textContent.includes('re-reads the panel'), 'the hint names the cause and the remedy')
+    const button = box.children[2]
+    assert(button.textContent === 'Reload', `the button is labelled by its action, got "${button.textContent}"`)
+    assert(typeof button.handlers.click === 'function', 'the button is clickable')
+    button.handlers.click()
+    assert(reloads === 1, `clicking the button reloads the window once, got ${reloads}`)
+  } finally {
+    globalThis.window = previous
+    if (previousDoc === undefined) delete globalThis.document; else globalThis.document = previousDoc
+    if (previousLoc === undefined) delete globalThis.location; else globalThis.location = previousLoc
+  }
+  return 'load banner offers a working reload';
+});
+
+await check('status: an empty provider set reads as unknown, not as 0/0', async () => {
+  // A /status payload with no providers used to render "0/0 sources ready" next
+  // to a red dot — a number that carries no information and reads like a fault.
+  const source = readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8');
+  assert(source.includes("t('no source reported')"), 'the empty set has its own wording');
+  assert(source.includes('providers.length\n            ? t('), 'the readiness count is only used when providers exist');
+  const en = internals.makeT('en');
+  const zh = internals.makeT('zh');
+  assert(en('no source reported') === 'no source reported', 'en passes through');
+  assert(zh('no source reported') !== 'no source reported', 'zh is translated');
+  assert(source.includes("chains\n            ? h('p'"), 'the provider line is dropped when it has nothing to report');
+  return 'empty provider set named as unknown';
+});
+
+await check('indicators: a missing bar requirement does not print "need undefined"', async () => {
+  // `quality.required` is computed server-side; a payload without it used to
+  // interpolate the string "undefined" straight into the sentence.
+  const source = readFileSync(path.join(PLUGIN, 'lib/client.js'), 'utf8');
+  assert(source.includes('Number.isFinite(Number(quality.required))'), 'the requirement is checked before it is quoted');
+  const en = internals.makeT('en');
+  const short = 'Not enough history for reliable indicators: only {n} daily bars are available.';
+  assert(en(short).replace('{n}', '250') === 'Not enough history for reliable indicators: only 250 daily bars are available.', 'the noun clause stands on its own');
+  assert(internals.makeT('zh')(short) !== short, 'zh is translated');
+  assert(!source.includes("String(quality.required)) : null"), 'no path quotes an unchecked requirement');
+  return 'missing bar requirement handled';
+});
+
 await check('help: the panel can report its own runtime state', async () => {
   const t = internals.makeT('en');
   const rows = internals.diagnostics(t);
