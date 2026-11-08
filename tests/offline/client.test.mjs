@@ -2616,6 +2616,48 @@ await check('sizing: shares follow the money at risk, and a stop above the price
     'the button writes the suggestion into the stop field',
   )
   assert(t('Use the suggested stop') === '使用建议止损', 'adopt label localised')
+
+  // The plan answers how much a stop-out costs, but only ever printed it as a
+  // rate. "1% risk" is not what an account is sized against — the dollar figure
+  // is, and it was already computed inside sizeFor (riskMoney) without being shown.
+  assert(source.includes("t('If the plan is stopped out, this is what it costs: {amount} — {pct} of the account.'"), 'the card states the stop-out cost in money'),
+  assert(source.includes('money(sizingPlan.riskMoney, sizingCurrency)'), 'the money comes from the plan object itself, not a re-derivation'),
+  assert(source.includes('const sizingRiskShare = sizingPlan && Number(sizing.account) > 0 ? (sizingPlan.riskMoney / Number(sizing.account)) * 100 : null'), 'the account share of that risk is derived from the same inputs sizeFor used'),
+  assert(
+    t('If the plan is stopped out, this is what it costs: {amount} — {pct} of the account.', { amount: '$100.00', pct: '+1.00%' }) === '如果这笔按止损离场，代价是这些：$100.00——占账户的 +1.00%。',
+    'stop-out cost sentence localised with its placeholders filled',
+  )
+
+  // A zero share count is not "buy nothing"; it means the budget cannot reach one
+  // share at this stop distance. The card must name which input has to move.
+  assert(source.includes("t('The budget does not reach one share at this stop distance. Either risk more per trade, or take a tighter stop.')"), 'the zero-share case explains which input to change'),
+  assert(
+    t('The budget does not reach one share at this stop distance. Either risk more per trade, or take a tighter stop.') === '这个预算在当前止损距离下买不到一股：要么提高单笔风险，要么把止损收紧。',
+    'zero-share hint localised',
+  )
+
+  // A plan that stays on the screen is arithmetic. The suggested level has to be
+  // armable as a price alert from the same line, because the alert fires off the
+  // quote this page already loads and arming it elsewhere means retyping it into
+  // the fields above by hand.
+  assert(css.includes('.tm-sizing__arm'), 'the arm button is styled')
+  assert(source.includes("t('Arm it as an alert')"), 'the suggestion line carries the arm button')
+  assert(
+    source.includes('onClick: () => setAlert({ symbol, market: hint }, { below: sizingSuggested })'),
+    'arming writes only the lower bound, so an existing upper bound survives',
+  )
+  assert(t('Arm it as an alert') === '设为价格提醒', 'arm label localised')
+
+  // After arming, the card must say what is now armed — otherwise the click has
+  // no visible result and reads like a button that did nothing.
+  assert(
+    source.includes('myAlert && isNum(myAlert.below) && sizingSuggested && myAlert.below === sizingSuggested'),
+    'the confirmation is shown only when the stored bound really is the suggested one',
+  )
+  assert(
+    t('Alert armed at {price} — this panel and the watchlist will tell you when the price reaches it.', { price: '$128.40' }) === '已把提醒设在 $128.40：这个页面和自选列表都会在价格触及时告诉你。',
+    'armed confirmation localised with its placeholder filled',
+  )
 })
 
 await check('earnings surprises: quarters read as quarters, and the bars are scaled', () => {
