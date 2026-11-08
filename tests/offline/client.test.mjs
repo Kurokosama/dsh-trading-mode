@@ -3824,9 +3824,11 @@ await check('watchlist: the row can record the position it already reports', asy
 
 await check('watchlist: the row can arm the watch it already reports', async () => {
   const draft = internals.alertDraftOf
-  assert(draft(null).above === '' && draft(null).below === '' && draft(null).loss === '' && draft(null).move === '', 'an unarmed row prefills four empty boxes');
+  assert(draft(null).above === '' && draft(null).below === '' && draft(null).loss === '' && draft(null).move === '' && draft(null).stop === '', 'an unarmed row prefills five empty boxes');
   const armedDraft = draft({ above: 180, below: 120, loss: 8, move: 5 });
-  assert(armedDraft.above === '180' && armedDraft.below === '120' && armedDraft.loss === '8' && armedDraft.move === '5', 'an armed one prefills as text, ready to edit');
+  assert(armedDraft.above === '180' && armedDraft.below === '120' && armedDraft.loss === '8' && armedDraft.move === '5' && armedDraft.stop === '', 'bounds prefill as text; an unarmed plan stays empty');
+  const plannedDraft = draft({ stop: 185.5 });
+  assert(plannedDraft.stop === '185.5', 'the plan the card armed prefills in the same editor that reports it');
   assert(draft({ below: 120 }).above === '' && draft({ below: 120 }).below === '120', 'each bound stands on its own, so editing one keeps the others visible');
   assert(draft({ above: 'abc' }).above === '', 'a non-number is not a bound');
 
@@ -3847,7 +3849,7 @@ await check('watchlist: the row can arm the watch it already reports', async () 
   assert(read.includes('tm-row__flag--alert') && !read.includes('tm-row__flag--edit'), 'read-only rendering still reports the watch, without promising an editor');
 
   const row = String(internals.WatchRow);
-  assert(row.includes('alertDraftOf(alert)'), 'the fields prefill from the armed watch');
+  assert(row.includes('alertDraftOf(watched)'), 'the fields prefill from the whole watch, not one store');
   assert(row.includes('onSetAlert(alertTarget, { above: alertDraft.above, below: alertDraft.below, loss: alertDraft.loss, move: alertDraft.move })'), 'saving writes the same local store the detail page writes');
   assert(row.includes("t('Save alert')"), 'commit is reachable from the row');
   for (const key of ['above', 'below', 'max loss', 'day move']) {
@@ -3860,6 +3862,33 @@ await check('watchlist: the row can arm the watch it already reports', async () 
   assert(internals.ZH['Set an alert'] === '设提醒', 'the offer is localised');
   assert(internals.ZH['Click to edit the alert'] === '点击可修改这条提醒', 'the edit affordance is localised');
   assert(internals.ZH['A watch on price, drawdown or a one-day move — armed here, without opening the page'].includes('不用打开页面'), 'the tooltip is localised');
+
+  // The card's own button arms a plan; the row must be able to show and edit that
+  // same level, otherwise the chip reports something the editor cannot see.
+  const planned = renderToString(h(internals.WatchRow, {
+    item, index: 0, count: 1, onSetAlert: writer, onSetStop: writer, stop: { price: 185.5, armed: true },
+  }));
+  assert(planned.includes('tm-row__flag--alert'), 'a row whose only watch is an armed plan still reports it');
+  assert(planned.includes('tm-row__flag--edit'), 'and the chip is still the way into the editor');
+  // Whether the editor offers Clear or Cancel is decided at render time from a
+  // local `watched` flag. renderToString cannot open the editor, so the decision
+  // itself is asserted as source shape: gated on the bounds alone, a row whose
+  // only watch is an armed plan would offer Cancel while the card that armed it
+  // offers 'Stop watching' — two entry points and no exit. The browser run
+  // (row-editor QA) measures the button set for real.
+  const edited = String(internals.WatchRow);
+  assert(/watched\s*\n?\s*\?\s*h\('button', \{ className: 'tm-btn tm-btn--ghost', onClick: clearAlert \}, t\('Clear'\)\)/.test(edited), 'the Clear gate reads the merged watch, not just the bounds');
+  assert(edited.includes("t('Cancel')"), 'an empty editor still offers Cancel');
+  assert(edited.includes('alertOpen && onSetAlert'), 'the editor opens from the chip it already reports');
+  assert(edited.includes('if (onSetAlert) onSetAlert(alertTarget, { above: null, below: null, loss: null, move: null })'), 'clearing bounds does not early-return past the plan');
+  assert(String(internals.WatchRow).includes("className: 'tm-alertfield tm-alertfield--stop'"), 'the editor carries the plan as a fifth field');
+  assert(edited.includes("t('No level')"), 'and says what leaving it empty means');
+  assert(edited.includes('if (onSetStop) onSetStop(alertTarget, alertDraft.stop)'), 'saving from the row arms the same store the card arms');
+  assert(edited.includes('if (onSetStop) onSetStop(alertTarget, null)'), 'Clear removes the plan too — one control for one watch');
+  assert(String(internals.WatchlistCard).includes('onSetStop: setStop'), 'the card hands the row the stop writer as well');
+  assert(internals.CSS.includes('.tm-alertfield--stop'), 'the plan field has its own style hook');
+  assert(internals.ZH['stop (armed)'] === '止损（已盯守）', 'named with the same noun the sizing card used');
+  assert(internals.ZH['No level'] === '不设', 'the empty case is localised too');
   return 'row alert entry ok';
 });
 
@@ -3899,26 +3928,36 @@ await check('export: the spreadsheet carries what the position is worth, not jus
   ];
   const costs = { 'US:AAPL': { price: 200, shares: 10 } };
   const alerts = { 'US:AAPL': { above: 120, move: 5 }, 'US:MSFT': { loss: 8 } };
-  const text = csv(rows, costs, alerts);
+  // An armed plan is a second kind of watch in a second store; the file has to
+  // carry both or a restored list silently unarms every row it had a level on.
+  const stops = { 'US:AAPL': { price: 185.5, armed: true }, 'US:MSFT': { price: 340.25, armed: true } };
+  const text = csv(rows, costs, alerts, stops);
   const lines = text.split('\r\n');
   assert(lines[0].endsWith('Cost,Shares,Value,Open P&L,Today,Alerts'), `header: ${lines[0]}`);
   const apple = lines[1];
   assert(apple.startsWith('AAPL,US,"Apple, Inc."'), `name with a comma stays quoted: ${apple}`);
-  assert(apple.endsWith(',200,10,2100,100,20,above 120.00; move 5.00%'), `position + watch columns: ${apple}`);
-  assert(internals.alertTextOf(alerts, rows[1]) === 'loss 8.00%', `loss-only watch: ${internals.alertTextOf(alerts, rows[1])}`);
-  assert(internals.alertTextOf(null, rows[0]) === '', 'no alerts map means an empty watch cell');
-  assert(internals.alertTextOf({}, rows[0]) === '', 'no entry for the row means an empty watch cell');
+  assert(apple.endsWith(',200,10,2100,100,20,above 120.00; move 5.00%; stop 185.50'), `position + both kinds of watch: ${apple}`);
+  assert(internals.alertTextOf(alerts, stops, rows[1]) === 'loss 8.00%; stop 340.25', `loss-only watch keeps its armed plan: ${internals.alertTextOf(alerts, stops, rows[1])}`);
+  assert(internals.alertTextOf(alerts, null, rows[0]) === 'above 120.00; move 5.00%', 'no stops map still writes the bounds it has');
+  assert(internals.alertTextOf({}, { 'US:AAPL': { price: 185.5, armed: true } }, rows[0]) === 'stop 185.50', 'an armed plan alone is a watch worth exporting');
+  assert(internals.alertTextOf({}, { 'US:AAPL': { price: 185.5 } }, rows[0]) === '', 'a leftover number that was never armed writes nothing — it is not a watch');
+  assert(internals.alertTextOf(null, null, rows[0]) === '', 'no maps at all means an empty watch cell');
+  assert(internals.alertTextOf({}, {}, rows[0]) === '', 'no entry for the row means an empty watch cell');
   const parsedAlerts = internals.parseWatchlistCsv(text);
   assert(parsedAlerts.length === 2, `rows still parse: ${parsedAlerts.length}`);
   assert(parsedAlerts[0].alerts && parsedAlerts[0].alerts.above === 120 && parsedAlerts[0].alerts.move === 5, `watch round-trip: ${JSON.stringify(parsedAlerts[0].alerts)}`);
-  assert(parsedAlerts[1].alerts && parsedAlerts[1].alerts.loss === 8, `second watch round-trip: ${JSON.stringify(parsedAlerts[1].alerts)}`);
+  assert(parsedAlerts[0].alerts && parsedAlerts[0].alerts.stop === 185.5, `the armed plan survives the file: ${JSON.stringify(parsedAlerts[0].alerts)}`);
+  assert(parsedAlerts[1].alerts && parsedAlerts[1].alerts.loss === 8 && parsedAlerts[1].alerts.stop === 340.25, `second watch round-trip: ${JSON.stringify(parsedAlerts[1].alerts)}`);
   const messy = internals.alertBoundsFromCell('above abc; move -2; loss 8%; junk');
   assert(messy && messy.loss === 8 && !messy.above && !messy.move, `bad tokens dropped, good ones kept: ${JSON.stringify(messy)}`);
   assert(internals.alertBoundsFromCell('junk;  ;') === undefined, 'no usable token means no watch');
   const microsoft = lines[2];
-  assert(microsoft.endsWith(',,,,,,,,,loss 8.00%'), `no cost basis leaves the money cells empty, the watch cell keeps its value: ${microsoft}`);
-  assert(csv([], costs).split('\r\n').length === 1, 'a header-only export is still a file');
-  assert(csv(null, null).split('\r\n')[0].includes('Value'), 'null rows keep the header');
+  assert(microsoft.endsWith(',,,,,,,,,loss 8.00%; stop 340.25'), `no cost basis leaves the money cells empty, the watch cell keeps both values: ${microsoft}`);
+  // A hand-edited file is the realistic case: someone deleted a bound and left the
+  // stop in place. The cell must still read as one watch, not be discarded.
+  assert(internals.alertBoundsFromCell('stop 185.50') && internals.alertBoundsFromCell('stop 185.50').stop === 185.50, 'an armed plan can be the only thing in the cell');
+  assert(csv([], costs, alerts, stops).split('\r\n').length === 1, 'a header-only export is still a file');
+  assert(csv(null, null, null, null).split('\r\n')[0].includes('Value'), 'null rows keep the header');
   assert(!text.startsWith('\ufeff'), 'the BOM belongs to the blob, not the text');
   return 'csv covered';
 });
