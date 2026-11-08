@@ -1243,11 +1243,35 @@ await check('brief: the rule edition is labelled and needs no model', async () =
   );
   assert(!skimpy.includes('Strongest mover'), 'a missing best row leaves no empty tile');
   assert(!skimpy.includes('Largest decline'), 'a missing worst row leaves no empty tile');
+  // The explanation belongs before the first brief, not on top of one: the
+  // reader who already has numbers came for the numbers.
+  const explained = renderToString(h(BriefCard, { aiAvailable: false, aiReason: 'no llm service' }));
+  assert(explained.includes('rule-based edition'), 'before the first brief the fallback is explained');
+  assert(explained.includes('no llm service'), 'the reason rides along while there is nothing else to read');
+  const quiet = renderToString(h(BriefCard, {
+    aiAvailable: false,
+    aiReason: 'no llm service',
+    brief: {
+      headline: 'Board 2 up, 1 down',
+      stocksTracked: 3,
+      upCount: 2,
+      downCount: 1,
+      unusualVolume: [],
+      keyObservations: [],
+      suggestions: [],
+      local: true,
+    },
+  }));
+  assert(!quiet.includes('rule-based edition'), 'once a brief is on screen the explanation does not sit above it');
+  assert(!quiet.includes('no llm service'), 'and the raw reason waits behind the button');
+  assert(quiet.includes('Rules only'), 'the badge still says where the numbers came from');
   const source = String(BriefCard);
   assert(source.includes('disabled: loading'), 'the button is only blocked while a run is in flight');
   assert(source.includes('rule-based edition'), 'the hint explains what the fallback writes');
   assert(makeT('zh')('Rules only') === '仅为规则生成', 'the label is translated');
   assert(String(internals.CSS).includes('.tm-brief__local'), 'the label is styled');
+  // A flex column stretches its children, so the pill needs to say so itself.
+  assert(/\.tm-brief__local \{[^}]*align-self: flex-start/.test(String(internals.CSS)), 'the badge hugs its text instead of stretching into a box');
   return 'rule edition labelled; model edition untouched';
 });
 

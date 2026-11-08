@@ -522,7 +522,7 @@ async function main() {
   await check('1.2: every level a suggestion names carries its exact price', () => {
     const realised = buildBriefInput({
       stocks: [
-        { symbol: 'NVDA', quote: { price: 210, changePct: 0.5 }, technical: { technical: { ma20: 195, ma50: 185, trendAlignment: 'short-term-above-medium' } } },
+        { symbol: 'NVDA', quote: { price: 210, changePct: 0.5 }, technical: { technical: { ma20: 205, ma50: 185, trendAlignment: 'short-term-above-medium' } } },
         { symbol: 'MSFT', quote: { price: 420, changePct: -0.5 }, technical: { technical: { ma20: 440, ma50: 450, trendAlignment: 'short-term-below-medium' } } },
         { symbol: 'AAPL', quote: { price: 275, changePct: 0.2 }, technical: { technical: { ma20: 260, ma50: 255, trendAlignment: 'bullish-stack' } } },
       ],
@@ -1055,10 +1055,13 @@ await check('the brief can be written without a model, and it says so', () => {
     assert.ok(en.keyObservations.length >= 2 && en.keyObservations.length <= 5, 'observations stay inside the card contract');
     assert.ok(en.suggestions.length >= 1 && en.suggestions.length <= 5, 'the derived ladder still fills the action list');
     assert.match(en.headline, /NVDA \+2\.40% leads/, 'the headline names the leader');
-    assert.match(en.keyObservations[0], /3 names tracked: 2 up, 1 down/);
+    // 1.3: the counts already sit in the headline, so the first observation
+    // spends its line on the spread the headline cannot carry.
+    assert.match(en.headline, /Board 2 up, 1 down/);
+    assert.match(en.keyObservations[0], /NVDA \+2\.40% and TSLA -3\.10% sit 5\.5 points apart/);
     const zh = localBrief(input, 'zh');
     assert.match(zh.headline, /领涨/, 'the fallback speaks the panel language');
-    assert.match(zh.keyObservations[0], /最强/);
+    assert.match(zh.keyObservations[0], /最强 NVDA \+2\.40% 与最弱 TSLA -3\.10% 相距 5\.5 个百分点/);
     assert.ok(zh.suggestions.some((line) => /NVDA/.test(line)), 'zh suggestions are derived too');
     // No quotes at all: the card still gets an answer, but no invented mover.
     const empty = localBrief({ stocks: [] }, 'en');
@@ -1068,6 +1071,39 @@ await check('the brief can be written without a model, and it says so', () => {
     assert.equal(empty.unusualVolume.length, 0);
     assert.equal(empty.keyObservations.length, 0);
     return 'the fallback brief is arithmetic over the same input and never invents a mover';
+  });
+
+  await check('1.3: the level ladder ranks by proximity and says one kind of thing twice at most', () => {
+    const row = (symbol, price, ma50) => ({
+      symbol,
+      price,
+      changePct: 0.1,
+      ma50,
+      trendAlignment: 'bullish-stack',
+    });
+    // Four rows, one identical sentence each: the old ladder printed four
+    // "trend intact" lines in watchlist order. Now the two nearest lines speak.
+    const input = {
+      stocks: [row('FAR1', 100, 90), row('NEAR', 100, 99.5), row('MID', 100, 96), row('FAR2', 100, 88)],
+      positions: [],
+    };
+    const en = derivedSuggestions(input, 'en');
+    const trends = en.filter((line) => line.includes('bullish MA stack'));
+    assert.equal(trends.length, 2, `one kind is capped at two lines, got ${JSON.stringify(en)}`);
+    assert(trends[0].startsWith('NEAR '), `the nearest line leads, got ${trends[0]}`);
+    assert(trends[1].startsWith('MID '), `the second nearest follows, got ${trends[1]}`);
+    assert(!en.some((line) => line.startsWith('FAR1') || line.startsWith('FAR2')), 'a line 10% away names a symbol, not an action');
+
+    // One row, one level: a name both near its high and in a bullish stack
+    // speaks about the high, which is the closer fact, not both.
+    const both = derivedSuggestions({
+      stocks: [{ symbol: 'DOUBLE', price: 100, changePct: 0.1, high52w: 101, ma50: 80, trendAlignment: 'bullish-stack' }],
+      positions: [],
+    }, 'en');
+    const levelLines = both.filter((line) => line.includes('52-week high') || line.includes('MA stack'));
+    assert.equal(levelLines.length, 1, `one row earns one level line, got ${JSON.stringify(both)}`);
+    assert(levelLines[0].includes('52-week high'), `the closer fact wins, got ${levelLines[0]}`);
+    return 'the floor ranks by distance and caps repetition';
   });
 
   console.log(`\n=== ${passed}/${passed + failures.length} checks passed, ${failures.length} failed ===`);
