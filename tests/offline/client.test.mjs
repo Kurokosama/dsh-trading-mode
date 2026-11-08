@@ -2645,17 +2645,19 @@ await check('sizing: shares follow the money at risk, and a stop above the price
     'zero-share hint localised',
   )
 
-  // A plan that stays on the screen is arithmetic. The suggested level has to be
-  // armable as a price alert from the same line, because the alert fires off the
-  // quote this page already loads and arming it elsewhere means retyping it into
-  // the fields above by hand.
-  assert(css.includes('.tm-sizing__arm'), 'the arm button is styled')
-  assert(source.includes("t('Arm it as an alert')"), 'the suggestion line carries the arm button')
+  // A plan that stays on the screen is arithmetic. The level has to be armable as
+  // a watch from the same card, because it fires off the quote this page already
+  // loads and arming it elsewhere means retyping it into another form by hand.
+  // It is its own store, not a fifth alert field: the sizing draft is one shared
+  // draft across symbols, so merging the two would make every symbol inherit one
+  // typed stop.
+  assert(css.includes('.tm-sizing__arm'), 'the arm button on the suggestion line is styled')
+  assert(source.includes("t('Watch this stop')"), 'the suggestion line carries the watch button')
   assert(
-    source.includes('onClick: () => setAlert({ symbol, market: hint }, { below: sizingSuggested })'),
-    'arming writes only the lower bound, so an existing upper bound survives',
+    source.includes('onClick: () => setStop({ symbol, market: hint }, sizingArming)'),
+    'the watch is armed for the level in the card, not for a separately typed bound',
   )
-  assert(t('Arm it as an alert') === '设为价格提醒', 'arm label localised')
+  assert(t('Watch this stop') === '盯住这个止损', 'watch label localised')
 
   // After arming, the card must say what is now armed — otherwise the click has
   // no visible result and reads like a button that did nothing.
@@ -2741,6 +2743,54 @@ await check('sizing: shares follow the money at risk, and a stop above the price
   assert(
     t('At that distance your positions would carry {shares}.', { shares: '9' }) === '按这个距离，你的持仓规模对应 9 股。',
     'share hint localised with its placeholder filled',
+  )
+
+  // The watch is its own store, not a fifth alert field. The sizing draft is one
+  // shared draft across every symbol (localStorage 'tm-sizing'), so folding an
+  // armed stop into 'tm-alerts' would give all of them the same stop.
+  assert(typeof I.stopHit === 'function' && typeof I.stopOf === 'function', 'the plan watch has its own helpers')
+  assert(source.includes("const STOPS_KEY = 'tm-stops'"), 'armed plans live in their own store')
+  // A plan is arithmetic until it is armed; nothing fires from a level that was
+  // only typed into a draft.
+  assert(I.stopHit(120, null) === null, 'no watch, no hit')
+  assert(I.stopHit(120, { price: 128.4 }) === null, 'a stored plan that was never armed fires nothing')
+  assert(I.stopHit(128.4, { price: 128.4, armed: true }) === 'stop', 'the level itself counts as reached')
+  assert(I.stopHit(120, { price: 128.4, armed: true }) === 'stop', 'a price under the plan fires the watch')
+  assert(I.stopHit(141.2, { price: 128.4, armed: true }) === null, 'a price above the plan says nothing')
+  assert(I.stopHit(null, { price: 128.4, armed: true }) === null, 'a missing quote never fires')
+  // A row with only an armed plan still reports its hit — the caller does not
+  // have to know which kind of watch fired.
+  assert(I.alertHit(120, null, { price: 128.4, armed: true }) === 'stop', 'the shared check covers a plan on its own')
+  assert(I.alertHit(120, { above: 150, below: null, loss: null, move: null }, { price: 128.4, armed: true }) === 'stop', 'a typed upper bound does not hide the plan')
+  // Dismissing a plan hit follows the lower-bound rule: it is the same question
+  // ("the price came down to this level"), so it must not need its own margin.
+  assert(I.alertSnoozed('stop', 128.0, { stop: 128.4 }) === true, 'a plan hit stays dismissed just under the level')
+  assert(I.alertSnoozed('stop', 127.0, { stop: 128.4 }) === false, 'another point lower asks again')
+  assert(
+    I.alertBoundsText({ above: null, below: null, loss: null, move: null, stop: 128.4 }, t, 'USD') === '止损 $128.40',
+    'the plan is described as a stop, not as a fourth typed bound',
+  )
+  assert(I.alertLogReason({ hit: 'stop', level: 128.4, currency: 'USD' }, t) === '到达已设的止损 $128.40', 'the history names a plan hit in Chinese')
+  assert(
+    t('Watching this stop: {price}. This panel, the list and the banner will say when the price reaches it.', { price: '$128.40' }) === '正在盯守这个止损：$128.40。这个页面、自选列表和提醒条都会在价格触及时说明。',
+    'armed-plan confirmation localised with its placeholder filled',
+  )
+  // The offer line and the settled line must not use the same sentence: one is a
+  // question about a number in a field, the other reports a watch that exists.
+  assert(
+    t('Arm this stop as a watch: {price}.', { price: '$138.00' }) === '把这个止损设为提醒：$138.00。',
+    'the typed-stop offer reads as an offer, not as a state',
+  )
+  // The watch has to be offered for a typed level too, or arming only works on
+  // the suggested one and every hand-chosen stop stays unwatched.
+  assert(css.includes('.tm-sizing__watch') && css.includes('.tm-sizing__unarm'), 'both states of the control are styled')
+  assert(
+    source.includes('!myStop && sizingPlan && isNum(sizingTyped) && sizingTyped > 0'),
+    'a typed stop gets the watch offered as well',
+  )
+  assert(
+    source.includes('onClick: () => setStop({ symbol, market: hint }, null)'),
+    'the control can be turned off again from the same line',
   )
 })
 
